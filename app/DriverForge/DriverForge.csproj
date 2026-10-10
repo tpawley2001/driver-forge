@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+    <AssemblyName>DriverForge</AssemblyName>
+    <RootNamespace>DriverForge</RootNamespace>
+    <Version>0.1.0</Version>
+    <Product>Driver Forge</Product>
+    <Authors>Hillyard Tech</Authors>
+    <Company>Hillyard Tech</Company>
+    <Copyright>Copyright (c) 2026 Hillyard Tech</Copyright>
+    <!-- Field-backed [ObservableProperty] is fine for a desktop app. -->
+    <NoWarn>$(NoWarn);MVVMTK0045</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WPF-UI" Version="4.3.0" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\app.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DriverForge.Core\DriverForge.Core.csproj" />
+  </ItemGroup>
+
+</Project>

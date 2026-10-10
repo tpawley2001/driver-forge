@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="DriverForge.Core/DriverForge.Core.csproj" />
+  <Project Path="DriverForge/DriverForge.csproj" />
+  <Project Path="DriverForge.Tests/DriverForge.Tests.csproj" />
+</Solution>

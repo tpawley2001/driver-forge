@@ -1,0 +1,4 @@
+dist/
+app/**/bin/
+app/**/obj/
+app/publish/
