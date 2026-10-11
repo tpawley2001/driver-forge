@@ -124,9 +124,14 @@ public sealed class CatalogSource(string cacheDirectory) : IDriverSource
 
     int readable, unreadable;
 
+    /// <summary>Whether to search at all (a setting); installs from earlier offers still work.</summary>
+    public Func<bool> Enabled { get; init; } = () => true;
+
     public async Task<IReadOnlyList<SourcedOffer>> FindAsync(IReadOnlyList<Device> devices, OsInfo os, IProgress<string>? progress, CancellationToken ct)
     {
+        if (!Enabled()) return [];
         readable = unreadable = 0;
+        var cache = new MatchCache(Path.Combine(cacheDirectory, "matches.json"));
         var found = new List<SourcedOffer>();
         var withIds = devices.Where(d => d.HardwareIds.Count > 0).ToList();
         int n = 0;
@@ -150,22 +155,23 @@ public sealed class CatalogSource(string cacheDirectory) : IDriverSource
             foreach (var row in candidates)
             {
                 var offer = row.Size is > 0 && row.Size <= ConfirmLimitBytes
-                    ? await ConfirmedOfferAsync(d, row, ct)
+                    ? await ConfirmedOfferAsync(d, row, cache, ct)
                     : Unconfirmed(d, row, position);
                 if (offer is not null) found.Add(new(d.InstanceId, offer));
             }
         }
+        cache.Save();
         if (unreadable > 0 && readable == 0)
             throw new EngineException("The Catalog's search page has changed; Catalog results are unavailable.");
         return found;
     }
 
-    async Task<DriverOffer?> ConfirmedOfferAsync(Device d, CatalogRow row, CancellationToken ct)
+    async Task<DriverOffer?> ConfirmedOfferAsync(Device d, CatalogRow row, MatchCache cache, CancellationToken ct)
     {
         string folder;
         try { folder = await FetchAsync(row.UpdateId, null, ct); }
         catch (EngineException) { return null; }       // a bad package is no offer
-        var node = InfMatcher.Best(d, InfMatcher.InfsIn(folder));
+        var node = InfMatcher.Best(d, InfMatcher.InfsIn(folder), cache);
         return node is null ? null : InfMatcher.ToOffer(d, node, "cat|" + row.UpdateId, SourceName, isLocal: false, row.Size);
     }
 

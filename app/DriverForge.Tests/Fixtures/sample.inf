@@ -1,0 +1,44 @@
+; Driver Forge test INF, written for the tests (not a real driver).
+[Version]
+Signature   = "$WINDOWS NT$"
+Class       = System
+ClassGuid   = {4d36e97d-e325-11ce-bfc1-08002be10318}
+Provider    = %ProviderName%
+DriverVer   = 09/29/2017,12.17.8.7   ; trailing comment
+CatalogFile = sample.cat
+
+[Manufacturer]
+%Mfg% = Contoso, NTamd64, NTamd64.10.0...17763, NTx86, NTarm64
+
+[Manufacturer]
+%Mfg2% = Fabrikam, NTamd64.10.0...99999
+
+[Contoso.NTamd64]
+%Old.Desc% = Old_Inst, PCI\VEN_1234&DEV_0001
+
+[Contoso.NTamd64.10.0...17763]
+%Dev.Desc% = Dev_Inst, PCI\VEN_1234&DEV_0001&SUBSYS_00011234, \
+                       PCI\VEN_1234&DEV_0001
+"Quoted; not a comment" = Quote_Inst, PCI\VEN_1234&DEV_0002
+
+[Contoso.NTx86]
+%Dev.Desc% = Dev_Inst, PCI\VEN_1234&DEV_0003
+
+[Contoso.NTarm64]
+
+[Fabrikam.NTamd64.10.0...99999]
+%Future% = Future_Inst, PCI\VEN_5678&DEV_0001
+
+[Dev_Inst.NT]
+FeatureScore = 0xFE
+
+[Strings]
+ProviderName = "Contoso, Ltd."
+Mfg          = "Contoso"
+Mfg2         = "Fabrikam"
+Dev.Desc     = "Contoso 100%% Device"
+Old.Desc     = "Contoso Device (old OS)"
+Future       = "Future"
+
+[Strings.0407]
+Dev.Desc     = "Contoso Gerät"

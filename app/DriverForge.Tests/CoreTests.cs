@@ -499,3 +499,118 @@ public class MatchRuleTests
     [InlineData("Realtek Semiconductor Corp.", "realtek")]
     public void Maker_is_normalised(string provider, string maker) => Assert.Equal(maker, MatchRules.Maker(provider));
 }
+
+public class InfParserTests
+{
+    static readonly OsInfo Win10x64 = new("amd64", 10, 0, 19045, 1, 0x100);
+    static string FixturePath(string name) => Path.Combine(AppContext.BaseDirectory, "Fixtures", name);
+    static InfFile Sample(string name = "sample.inf", int lcid = 0x0409) => InfFile.Load(FixturePath(name), lcid);
+
+    [Fact]
+    public void Version_section_with_strings_and_comments()
+    {
+        var inf = Sample();
+        Assert.Equal("Contoso, Ltd.", inf.Version("Provider"));
+        Assert.Equal("System", inf.Version("Class"));
+        var (date, version) = inf.DriverVer();
+        Assert.Equal(new DateOnly(2017, 9, 29), date);
+        Assert.Equal("12.17.8.7", version.ToString());
+    }
+
+    [Fact]
+    public void Picks_the_highest_fitting_decoration_and_joins_continued_lines()
+    {
+        var models = Sample().Models(Win10x64);
+        var dev = Assert.Single(models, m => m.InstallSection == "Dev_Inst");
+        Assert.Equal("Contoso 100% Device", dev.Description);               // %% is a literal %
+        Assert.Equal("PCI\\VEN_1234&DEV_0001&SUBSYS_00011234", dev.HardwareId);
+        Assert.Equal(["PCI\\VEN_1234&DEV_0001"], dev.CompatibleIds);       // from the continued line
+        Assert.Contains(models, m => m.Description == "Quoted; not a comment");
+        Assert.DoesNotContain(models, m => m.InstallSection == "Old_Inst"); // NTamd64 lost to NTamd64.10.0...17763
+        Assert.DoesNotContain(models, m => m.InstallSection == "Future_Inst"); // build 99999 is newer than the OS
+    }
+
+    [Fact]
+    public void Older_build_falls_back_to_the_plain_architecture_section() =>
+        Assert.Equal("Old_Inst", Assert.Single(Sample().Models(Win10x64 with { Build = 17134 })).InstallSection);
+
+    [Fact]
+    public void Empty_models_section_means_not_supported() => Assert.Empty(Sample().Models(Win10x64 with { Architecture = "arm64" }));
+
+    [Fact]
+    public void Localized_strings_win() =>
+        Assert.Equal("Contoso Gerät", Sample(lcid: 0x0407).Models(Win10x64).First(m => m.InstallSection == "Dev_Inst").Description);
+
+    [Fact]
+    public void Utf16_file_reads_the_same() =>
+        Assert.Equal(Sample().Models(Win10x64), Sample("sample-utf16.inf").Models(Win10x64), new ModelComparer());
+
+    [Fact]
+    public void Ansi_bytes_are_code_page_1252() => Assert.Equal("Gerät", InfFile.Decode([0x47, 0x65, 0x72, 0xE4, 0x74]));
+
+    [Fact]
+    public void Quoted_commas_and_doubled_quotes()
+    {
+        var (key, values) = InfFile.SplitEntry("Key = \"a, b\", \"say \"\"hi\"\"\", c");
+        Assert.Equal("Key", key);
+        Assert.Equal(["a, b", "say \"hi\"", "c"], values);
+    }
+
+    sealed class ModelComparer : IEqualityComparer<InfModel>
+    {
+        public bool Equals(InfModel? a, InfModel? b) => a!.Description == b!.Description && a.InstallSection == b.InstallSection
+            && a.HardwareId == b.HardwareId && a.CompatibleIds.SequenceEqual(b.CompatibleIds);
+        public int GetHashCode(InfModel m) => m.HardwareId.GetHashCode();
+    }
+}
+
+public class TargetOsTests
+{
+    static readonly OsInfo Win10 = new("amd64", 10, 0, 19045, 1, 0x100);
+
+    [Theory]
+    [InlineData("NTamd64|NTamd64.10.0...17763", "NTamd64.10.0...17763")]
+    [InlineData("NTamd64|NTamd64.10.0...22000", "NTamd64")]          // build newer than the OS
+    [InlineData("NTx86|NTarm64", null)]                                 // other architectures
+    [InlineData("NT|NTamd64.6.1", "NTamd64.6.1")]                       // higher version wins
+    [InlineData("NTamd64.10.0.3|NTamd64.10.0", "NTamd64.10.0")]         // server product type on a workstation
+    [InlineData("NTamd64.10.0.1|NTamd64.10.0", "NTamd64.10.0.1")]       // equal version: the one with a product type
+    [InlineData("NTamd64.6.3...99999|NTamd64.6.1", "NTamd64.6.3...99999")] // build ignored when the OS major.minor is higher
+    public void Chooses_like_windows(string decorations, string? expected) =>
+        Assert.Equal(expected, TargetOs.Choose(decorations.Split('|'), Win10));
+}
+
+public class MatchCacheTests
+{
+    [Fact]
+    public void Answers_survive_a_restart_and_change_with_the_inf()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), $"df-cache-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(dir);
+        try
+        {
+            string inf = Path.Combine(dir, "a.inf"), store = Path.Combine(dir, "m.json");
+            File.WriteAllText(inf, "[Version]");
+            var d = new Device("X\\1", "D", "D", "", "", ["X"], [], 0, null);
+            var node = new DriverNode("n", "m", "p", DriverVersion.Parse("1.2.3.4"), new(2020, 1, 1), inf, "S", "X", ["Y"], 0x00FF0000, true, false);
+            int asked = 0;
+            var c1 = new MatchCache(store);
+            Assert.Equal(node, c1.Get(d, inf, () => { asked++; return node; }), new NodeEq());
+            c1.Save();
+            var c2 = new MatchCache(store);
+            Assert.Equal(node, c2.Get(d, inf, () => { asked++; return null; }), new NodeEq());
+            Assert.Equal(1, asked);
+            File.AppendAllText(inf, "\n; changed");
+            Assert.Null(c2.Get(d, inf, () => { asked++; return null; }));
+            Assert.Equal(2, asked);
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
+    sealed class NodeEq : IEqualityComparer<DriverNode?>
+    {
+        public bool Equals(DriverNode? a, DriverNode? b) => a is not null && b is not null && a.Inf == b.Inf && a.Rank == b.Rank
+            && a.Version.CompareTo(b.Version) == 0 && a.Date == b.Date && a.InfCompatibleIds.SequenceEqual(b.InfCompatibleIds);
+        public int GetHashCode(DriverNode? n) => 0;
+    }
+}

@@ -184,9 +184,16 @@ then the Catalog).
 ### 4.3 Local folders (optional)
 
 The user can add folders that hold extracted driver packages (for example an
-OEM's driver download, or a USB stick of drivers). Archives (`.zip`, `.7z`,
-`.cab`) can be read with a permissively licensed library (SharpCompress, MIT)
-or `expand.exe` for cabs.
+OEM's driver download, or a USB stick of drivers), on the Sources page.
+`.zip` (the framework's `ZipFile`) and `.cab` (`expand.exe`) archives inside
+are unpacked once into the cache, again when they change. `.7z` isn't read:
+it would need a library, and no dependency is worth it yet.
+
+The index and the INF parser only **shortlist**: an INF whose models list
+one of a device's IDs is a candidate, and Windows makes the match
+(section 5.0). Windows' answer per device and INF is cached on disk
+(`MatchCache`, keyed on the INF's size and time and the device's IDs), which
+takes a warm scan of a folder of 80 INFs from 22 s to 7 s on the test box.
 
 #### 4.3.1 Index
 
@@ -439,7 +446,7 @@ snapshots); show them, don't pre-select them.
 | 3 | Windows Update source (§4.1) | Optional driver updates listed and one installed on the test box. **Done 2026-10-10**: Intel thermal subsystem (problem 28) installed from WU on the test box, now oem32.inf 10.1.1.12, no problem |
 | 4 | Install + backup + history (§6, §7) | Install, verify, roll back one device on the test box. **Done 2026-10-10**: on the test box the ISA bridge went machine.inf → oem31.inf (driver store offer), rolled back to machine.inf (oem31 exported first), then back to oem31 from the backup; each verified with PnP properties |
 | 5 | Catalog source (§4.2) | A device WU has nothing for gets a Catalog offer, installed from the cab. **Done 2026-10-11**: Intel Watchdog Timer on the test box, 11.7.0.1002 → 11.7.0.1019 from the Catalog cab (oem19 backed up), verified |
-| 6 | Local folders + INF parser (§4.3) | INF fixture tests pass; a folder of OEM drivers produces offers |
+| 6 | Local folders + INF parser (§4.3) | INF fixture tests pass; a folder of OEM drivers produces offers. **Done 2026-10-11**: parser and decoration tests pass; on the test box a folder of 81 INFs (folders, a .cab, a .zip) produced the same 25 Windows-confirmed offers as the Catalog source for the same packages |
 | 7 | Cleanup, scheduling (§8, §9) | |
 
 Testing rule: driver installs only on the **test box**, never on a daily-use PC.

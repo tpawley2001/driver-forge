@@ -28,13 +28,13 @@ public sealed partial class MainViewModel : ObservableObject
         Drivers = new DriversViewModel(this);
         SettingsPage = new SettingsViewModel(this);
         History = new HistoryViewModel(this);
+        Sources = new SourcesViewModel(this);
 
         driversNav = new("Drivers", SymbolRegular.DeveloperBoard24, Drivers);
         Nav =
         [
             driversNav,
-            new("Sources", SymbolRegular.CloudArrowDown24, new ComingSoonViewModel("Driver sources",
-                "Windows Update and the Microsoft Update Catalog, plus any folders of drivers you add. Comes with the engine's driver sources (milestones 3, 5 and 6).")),
+            new("Sources", SymbolRegular.CloudArrowDown24, Sources),
             new("History & rollback", SymbolRegular.History24, History),
             new("System info", SymbolRegular.Desktop24, new ComingSoonViewModel("System info",
                 "Motherboard, BIOS, disks and the date each driver was installed.")),
@@ -49,6 +49,7 @@ public sealed partial class MainViewModel : ObservableObject
     public DriversViewModel Drivers { get; }
     public SettingsViewModel SettingsPage { get; }
     public HistoryViewModel History { get; }
+    public SourcesViewModel Sources { get; }
     public ObservableCollection<NavItem> Nav { get; }
 
     readonly NavItem driversNav;

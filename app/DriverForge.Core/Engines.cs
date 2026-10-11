@@ -11,7 +11,15 @@ public sealed class WindowsEngine(string dataDirectory) : IDriverEngine
 
     /// <summary>In priority order: when two sources offer the same driver, the first one's offer is kept.</summary>
     public IReadOnlyList<IDriverSource> Sources { get; } =
-        [new WindowsUpdateSource(), new DriverStoreSource(), new CatalogSource(Path.Combine(dataDirectory, "cache", "catalog"))];
+        [
+            new WindowsUpdateSource(),
+            new DriverStoreSource(),
+            new CatalogSource(Path.Combine(dataDirectory, "cache", "catalog")) { Enabled = () => LoadSettings(dataDirectory).UseCatalog },
+            new FolderSource(() => LoadSettings(dataDirectory).DriverFolders, Path.Combine(dataDirectory, "cache", "folders")),
+        ];
+
+    /// <summary>Read at scan time, so a change in the app applies to the next scan.</summary>
+    static AppSettings LoadSettings(string dataDirectory) => AppSettings.Load(Path.Combine(dataDirectory, "settings.json"));
 
     public async Task<ScanResult> ScanAsync(IProgress<string>? progress, CancellationToken ct = default)
     {

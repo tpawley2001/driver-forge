@@ -18,6 +18,13 @@ public sealed class InverseBool : IValueConverter
     public object ConvertBack(object value, Type t, object p, CultureInfo c) => value is not true;
 }
 
+/// <summary>0 is visible (an "empty" message), anything else collapsed.</summary>
+public sealed class ZeroToVisibility : IValueConverter
+{
+    public object Convert(object value, Type t, object p, CultureInfo c) => value is 0 ? Visibility.Visible : Visibility.Collapsed;
+    public object ConvertBack(object value, Type t, object p, CultureInfo c) => throw new NotSupportedException();
+}
+
 public sealed class NullToVisibility : IValueConverter
 {
     /// <summary>False: null is collapsed. True: null is visible.</summary>

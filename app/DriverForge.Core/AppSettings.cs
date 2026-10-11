@@ -10,6 +10,10 @@ public sealed class AppSettings
     /// <summary>Simulate installs: everything runs except the driver install itself.</summary>
     public bool TestMode { get; set; }
     public HashSet<string> IgnoredDevices { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>Search the Microsoft Update Catalog during scans.</summary>
+    public bool UseCatalog { get; set; } = true;
+    /// <summary>Folders of driver packages to offer drivers from (SPEC §4.3).</summary>
+    public List<string> DriverFolders { get; set; } = [];
 
     static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
 
