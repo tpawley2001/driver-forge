@@ -143,6 +143,17 @@ public class RecommenderTests
     }
 
     [Fact]
+    public void Older_driver_at_equal_rank_is_up_to_date()
+    {
+        var installed = new InstalledDriver("Wi-Fi", "Intel", DriverVersion.Parse("20.70.18.2"), new(2020, 6, 24), "oem40.inf", "PCI\\VEN_8086&DEV_24F3", 0x00FC0001);
+        var d = new Device("D", "D", "D", "", "Net", ["PCI\\VEN_8086&DEV_24F3"], [], 0, installed);
+        var older = new DriverOffer("s", "This PC", "Wi-Fi", "Intel", DriverVersion.Parse("20.70.3.3"), new(2018, 9, 3), "PCI\\VEN_8086&DEV_24F3", MatchKind.HardwareId, 0x00FC0001, true, true);
+        var a = Recommender.Assess(d, [older]);
+        Assert.Equal(DeviceState.UpToDate, a.State);
+        Assert.Single(a.Offers);     // still listed for a hand-picked rollback
+    }
+
+    [Fact]
     public void Firmware_is_never_recommended()
     {
         var installed = new InstalledDriver("Firmware Resource", "Microsoft", DriverVersion.Parse("10.0.19041.1"), new(2006, 6, 21), "c_firmware.inf", "UEFI\\RES_X", 0x00FF3000);
@@ -350,4 +361,141 @@ public class InstallMatchTests
     [InlineData("2015-09-21", "2015-09-23", false)]
     public void Wu_dates_allow_a_day(string a, string b, bool close) =>
         Assert.Equal(close, WindowsEngine.DatesClose(DateOnly.Parse(a), DateOnly.Parse(b)));
+}
+
+public class CatalogParserTests
+{
+    static string Fixture(string name) => File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", name));
+    static readonly OsInfo Win10 = new("amd64", 10, 0, 19045, 1, 0x100);
+    static readonly OsInfo Win11 = new("amd64", 10, 0, 26100, 1, 0x100);
+
+    [Fact]
+    public void Search_rows_are_parsed()
+    {
+        var rows = CatalogParser.ParseSearch(Fixture("catalog-search-i219.html"));
+        Assert.Equal(3, rows.Count);
+        var r = rows[1];
+        Assert.Equal("7f6ca73a-b560-4eaa-a9b2-3662dbf4c1ab", r.UpdateId);
+        Assert.Equal("Intel - Net - 9/29/2017 12:00:00 AM - 12.17.8.7", r.Title);
+        Assert.Equal("Windows 10 Creators Update and Later Servicing Drivers", r.Products);
+        Assert.Equal("Drivers (Networking)", r.Classification);
+        Assert.Equal(new DateOnly(2017, 9, 28), r.LastUpdated);
+        Assert.Equal(837954, r.Size);
+    }
+
+    [Fact]
+    public void Another_page_parses_too() => Assert.Equal(6, CatalogParser.ParseSearch(Fixture("catalog-search-wdt.html")).Count);
+
+    [Fact]
+    public void No_results_page_has_no_rows() => Assert.Empty(CatalogParser.ParseSearch(Fixture("catalog-search-none.html")));
+
+    [Theory]
+    [InlineData("catalog-search-i219.html", true)]
+    [InlineData("catalog-search-none.html", true)]
+    [InlineData("catalog-search-empty-table.html", true)]   // the other "no results" shape
+    [InlineData("catalog-download.html", false)]
+    public void Recognises_search_pages(string fixture, bool isSearch) => Assert.Equal(isSearch, CatalogParser.IsSearchPage(Fixture(fixture)));
+
+    [Fact]
+    public void Download_dialog_gives_the_cab_and_digest()
+    {
+        var files = CatalogParser.ParseDownload(Fixture("catalog-download.html"));
+        var f = Assert.Single(files);
+        Assert.EndsWith("_fe33f3690ad8892059623f6656d5ea58f3fdb570.cab", f.Url);
+        Assert.Equal("/jPzaQrYiSBZYj9mVtXqWPP9tXA=", f.Digest);
+    }
+
+    [Theory]
+    [InlineData("Intel - Net - 9/29/2017 12:00:00 AM - 12.17.8.7", "12.17.8.7", "2017-09-29")]
+    [InlineData("Realtek Semiconductor Corp. MEDIA Driver Update (6.0.9980.1)", "6.0.9980.1", null)]
+    [InlineData("Intel driver update for Intel(R) Ethernet Connection (2) I219-LM", "", null)]
+    [InlineData("Intel Corporation - Display - 30.0.101.1339", "30.0.101.1339", null)]
+    public void Title_version_and_date(string title, string version, string? date)
+    {
+        Assert.Equal(version, CatalogParser.TitleVersion(title).ToString());
+        Assert.Equal(date is null ? null : DateOnly.Parse(date), CatalogParser.TitleDate(title));
+    }
+
+    static CatalogRow Row(string products, string cls = "Drivers (Other Hardware)", string title = "X - System - 1.0") =>
+        new("id", title, products, cls, null, 1);
+
+    [Theory]
+    [InlineData("Windows 10 and later drivers", true, true)]
+    [InlineData("Windows 11 Client, version 21H2 and later, Servicing Drivers", false, true)]
+    [InlineData("Windows Server 2016 and Later Servicing Drivers", false, false)]
+    [InlineData("Windows 7, Windows 8", false, false)]
+    public void Shortlist_by_product(string products, bool win10, bool win11)
+    {
+        Assert.Equal(win10, CatalogParser.MayFit(Row(products), Win10));
+        Assert.Equal(win11, CatalogParser.MayFit(Row(products), Win11));
+    }
+
+    [Fact]
+    public void Non_driver_rows_and_arm64_on_x64_are_dropped()
+    {
+        Assert.False(CatalogParser.MayFit(Row("Windows 10 and later drivers", cls: "Updates"), Win10));
+        Assert.False(CatalogParser.MayFit(Row("Windows 10 and later drivers", title: "Qualcomm - ARM64 - 1.0"), Win10));
+    }
+}
+
+public class DedupeTests
+{
+    [Fact]
+    public void Same_driver_from_two_sources_keeps_the_higher_priority_one()
+    {
+        var engine = new WindowsEngine(Path.GetTempPath());
+        DriverOffer O(string id, string source) => new(id, source, "d", "Intel", DriverVersion.Parse("1.2.3.4"), new(2020, 1, 1), "X", MatchKind.HardwareId, 0, true, false);
+        var kept = engine.Dedupe([O("c", CatalogSource.SourceName), O("w", WindowsUpdateSource.SourceName), O("s", DriverStoreSource.SourceName)]);
+        Assert.Equal("w", Assert.Single(kept).Id);
+    }
+}
+
+/// <summary>Real Catalog matches seen on the test box (SPEC §5.6).</summary>
+public class MatchRuleTests
+{
+    static Device Dev(string provider, string inf, string[] hw, string[]? compat = null) =>
+        new("X\\1", "D", "D", "", "System", hw, compat ?? [], 0,
+            new InstalledDriver("cur", provider, DriverVersion.Parse("10.0.19041.1"), new(2006, 6, 21), inf, hw[0], 0x00FF1003));
+
+    static DriverOffer Cat(string provider, string matched, uint rank = 0x00FF0003) =>
+        new("cat|" + provider, CatalogSource.SourceName, "x", provider, DriverVersion.Parse("19.5.32.69"), new(2019, 8, 26), matched, MatchKind.HardwareId, rank, true, false);
+
+    [Fact]
+    public void Touchpad_vendor_smbus_driver_is_not_recommended_over_intels()
+    {
+        var d = Dev("INTEL", "oem31.inf", ["PCI\\VEN_8086&DEV_A123&SUBSYS_8055103C&REV_31", "PCI\\VEN_8086&DEV_A123&SUBSYS_8055103C", "PCI\\VEN_8086&DEV_A123&REV_31", "PCI\\VEN_8086&DEV_A123"]);
+        var a = Recommender.Assess(d, [Cat("Synaptics", "PCI\\VEN_8086&DEV_A123", 0x00800003)]);
+        Assert.Equal(DeviceState.UpToDate, a.State);
+        Assert.NotNull(a.Reason);
+        Assert.Single(a.Offers);
+    }
+
+    [Fact]
+    public void Oem_filter_on_a_generic_hid_id_is_not_recommended() =>
+        Assert.Equal(DeviceState.UpToDate, Recommender.Assess(
+            Dev("Microsoft", "msmouse.inf", ["HID\\VID_046D&PID_C077&REV_7200", "HID\\VID_046D&PID_C077", "HID_DEVICE_SYSTEM_MOUSE", "HID_DEVICE_UP:0001_U:0002"]),
+            [Cat("HotKey", "HID_DEVICE_UP:0001_U:0002")]).State);
+
+    [Fact]
+    public void Driver_for_a_standard_acpi_id_is_not_recommended() =>
+        Assert.Equal(DeviceState.UpToDate, Recommender.Assess(Dev("Microsoft", "pci.inf", ["ACPI\\VEN_PNP&DEV_0A08", "ACPI\\PNP0A08"]), [Cat("Pci", "ACPI\\PNP0A08", 0x00FF0001)]).State);
+
+    [Fact]
+    public void Same_maker_update_is_recommended() =>
+        Assert.Equal(DeviceState.Update, Recommender.Assess(Dev("Realtek Semiconductor Corp.", "oem20.inf", ["HDAUDIO\\FUNC_01&VEN_10EC&DEV_0221"]), [Cat("Realtek", "HDAUDIO\\FUNC_01&VEN_10EC&DEV_0221", 0x00FF0000)]).State);
+
+    [Fact]
+    public void Vendor_driver_replacing_inbox_through_a_device_specific_id_is_recommended() =>
+        Assert.Equal(DeviceState.Update, Recommender.Assess(Dev("Microsoft", "machine.inf", ["PCI\\VEN_8086&DEV_A115&REV_31", "PCI\\VEN_8086&DEV_A115"], ["PCI\\CC_060400"]), [Cat("Intel", "PCI\\VEN_8086&DEV_A115", 0x00FF0001)]).State);
+
+    [Fact]
+    public void Windows_update_is_trusted_as_targeted() =>
+        Assert.Equal(DeviceState.Update, Recommender.Assess(Dev("INTEL", "oem31.inf", ["PCI\\VEN_8086&DEV_A123"]),
+            [Cat("Synaptics", "PCI\\VEN_8086&DEV_A123", 0x00800000) with { Source = WindowsUpdateSource.SourceName, Id = "wu|1" }]).State);
+
+    [Theory]
+    [InlineData("Intel(R) Corporation", "intel")]
+    [InlineData("INTEL", "intel")]
+    [InlineData("Realtek Semiconductor Corp.", "realtek")]
+    public void Maker_is_normalised(string provider, string maker) => Assert.Equal(maker, MatchRules.Maker(provider));
 }

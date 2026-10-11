@@ -60,13 +60,23 @@ public static class Recommender
             return new(device, DeviceState.Skipped, null, ranked, "Firmware updates flash the PC's firmware, so they're only installed if you pick one by hand.");
 
         var installed = device.Installed!;
+        // Of Windows' matches, only the ones that suit this PC are recommended (MatchRules).
+        var fit = ranked.FirstOrDefault(o => MatchRules.Suits(device, installed, o));
+        if (fit is null)
+            return new(device, DeviceState.UpToDate, null, ranked,
+                ranked.Any(o => DriverComparer.Compare(o.Rank, o.Date, o.Version, installed.Rank ?? o.Rank, installed.Date, installed.Version) < 0)
+                    ? "Drivers from other makers match this device too. They aren't recommended (they're usually for other PCs), but you can pick one by hand."
+                    : null);
+        best = fit;
+
         // Without the installed rank, assume it matched as well as the offer.
         uint installedRank = installed.Rank ?? best.Rank;
 
-        // Never offer a downgrade as an update, however well it matches. Only
-        // an offer that ranks at least as well as the installed driver would
-        // win; a worse-ranked older one (an inbox generic driver) is no news.
-        if (best.Rank <= installedRank && best.Date is { } bd && installed.Date is { } id && bd < id)
+        // Never offer a downgrade as an update, however well it matches. Only an
+        // older offer that ranks strictly better would win in Windows' eyes, so
+        // that's the one worth a warning; at equal or worse rank Windows keeps
+        // the newer installed driver too, and the device is simply up to date.
+        if (best.Rank < installedRank && best.Date is { } bd && installed.Date is { } id && bd < id)
             return new(device, DeviceState.Skipped, null, ranked,
                 $"The best-matched driver ({best.Version}, {bd:yyyy-MM-dd}) is older than the installed one, so it isn't recommended.");
 
@@ -76,5 +86,54 @@ public static class Recommender
         return better && !same
             ? new(device, DeviceState.Update, best, ranked, null)
             : new(device, DeviceState.UpToDate, null, ranked, null);
+    }
+}
+
+/// <summary>
+/// Which of Windows' matches suit this PC (SPEC §5.6). Windows Update targets
+/// drivers to computer models as well as devices; the Catalog and local
+/// folders don't, so a match there can be a driver made for another PC (a
+/// laptop's touchpad driver hooking a desktop's SMBus controller). For a
+/// working device such a match is only recommended when it comes from the
+/// current driver's maker, or replaces Microsoft's inbox driver through an ID
+/// specific to this device rather than a generic class ID.
+/// </summary>
+public static class MatchRules
+{
+    public static bool Suits(Device device, InstalledDriver installed, DriverOffer offer)
+    {
+        if (offer.Source == WindowsUpdateSource.SourceName) return true;
+        if (SameMaker(offer.Provider, installed.Provider)) return true;
+        return IsInbox(installed) && !IsGenericId(offer.MatchedId);
+    }
+
+    public static bool IsInbox(InstalledDriver d) =>
+        Maker(d.Provider) == "microsoft" && !DriverBackup.IsThirdParty(d.Inf);
+
+    public static bool SameMaker(string a, string b)
+    {
+        string x = Maker(a), y = Maker(b);
+        return x.Length > 0 && x == y;
+    }
+
+    /// <summary>"Intel(R) Corporation", "INTEL", "Intel Corp." → "intel".</summary>
+    public static string Maker(string provider)
+    {
+        var words = System.Text.RegularExpressions.Regex.Replace(provider.ToLowerInvariant(), @"\(r\)|\(tm\)|[®™.,]", " ")
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return words.Length > 0 ? words[0] : "";
+    }
+
+    /// <summary>
+    /// IDs that name a class or standard of device rather than one maker's
+    /// device: class codes, HID usages, USB classes, standard PNP/ACPI IDs.
+    /// </summary>
+    public static bool IsGenericId(string id)
+    {
+        string u = id.ToUpperInvariant();
+        return u.StartsWith("HID_DEVICE") || u.Contains("\\CC_") || u.StartsWith("USB\\CLASS_") || u.StartsWith("USB\\COMPOSITE")
+            || u.StartsWith("ACPI\\PNP") || u.StartsWith("ACPI\\VEN_PNP") || u.StartsWith("*PNP") || u.StartsWith("ACPI\\ACPI")
+            || u.StartsWith("ACPI\\VEN_ACPI") || u.StartsWith("ROOT\\") || u.StartsWith("SWD\\GENERIC")
+            || u.StartsWith("GENERIC") || u.StartsWith("DETECTED");
     }
 }

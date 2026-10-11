@@ -66,7 +66,8 @@ public sealed record DriverOffer(
     bool IsLocal,
     long? DownloadBytes = null,
     string? Inf = null,
-    string? InfSection = null);
+    string? InfSection = null,
+    bool Confirmed = true);
 
 public sealed record ScanResult(
     DateTime At,

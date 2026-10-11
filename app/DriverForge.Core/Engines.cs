@@ -9,7 +9,9 @@ public sealed class WindowsEngine(string dataDirectory) : IDriverEngine
     public string Name => "Windows engine";
     public string DataDirectory { get; } = dataDirectory;
 
-    public IReadOnlyList<IDriverSource> Sources { get; } = [new WindowsUpdateSource(), new DriverStoreSource()];
+    /// <summary>In priority order: when two sources offer the same driver, the first one's offer is kept.</summary>
+    public IReadOnlyList<IDriverSource> Sources { get; } =
+        [new WindowsUpdateSource(), new DriverStoreSource(), new CatalogSource(Path.Combine(dataDirectory, "cache", "catalog"))];
 
     public async Task<ScanResult> ScanAsync(IProgress<string>? progress, CancellationToken ct = default)
     {
@@ -36,8 +38,18 @@ public sealed class WindowsEngine(string dataDirectory) : IDriverEngine
             }
         }
         return new ScanResult(DateTime.Now, os, devices,
-            offers.ToDictionary(kv => kv.Key, kv => (IReadOnlyList<DriverOffer>)kv.Value, StringComparer.OrdinalIgnoreCase),
+            offers.ToDictionary(kv => kv.Key, kv => Dedupe(kv.Value), StringComparer.OrdinalIgnoreCase),
             warnings);
+    }
+
+    /// <summary>The same driver from several sources is listed once, from the highest-priority source.</summary>
+    internal IReadOnlyList<DriverOffer> Dedupe(IEnumerable<DriverOffer> offers)
+    {
+        int Priority(DriverOffer o) => Sources.Select((s, i) => (s, i)).FirstOrDefault(x => x.s.Name == o.Source).i;
+        return offers.OrderBy(Priority)
+            .GroupBy(o => o.Version.IsKnown && o.Date is not null ? $"{o.Version}|{o.Date}|{o.Provider.ToUpperInvariant()}" : o.Id)
+            .Select(g => g.First())
+            .ToList();
     }
 
     InstallHistory HistoryLog => new(Path.Combine(DataDirectory, "history.jsonl"));
@@ -64,7 +76,21 @@ public sealed class WindowsEngine(string dataDirectory) : IDriverEngine
         string inf;
         try { inf = await source.AcquireAsync(offer, progress, ct); }
         catch (EngineException ex) { return Fail(device, offer.Source, DriverRef.From(offer), options, ex.Message); }
-        return await InstallPackageAsync(device, inf, n => Matches(n, offer.InfSection, offer.Version, offer.Description),
+        // A package folder: Windows picks the INF and driver node for this device (InfMatcher).
+        Func<DriverNode, bool> pick = n => Matches(n, offer.InfSection, offer.Version, offer.Description);
+        if (Directory.Exists(inf))
+        {
+            if (offer.Confirmed && offer.Inf is { } known && File.Exists(known)) inf = known;
+            else
+            {
+                var node = await Task.Run(() => InfMatcher.Best(device, InfMatcher.InfsIn(inf)), ct);
+                if (node is null)
+                    return Fail(device, offer.Source, DriverRef.From(offer), options, "Windows says this package has no driver for this device.");
+                inf = node.Inf;
+                pick = n => Matches(n, node.Section, node.Version, node.Description);
+            }
+        }
+        return await InstallPackageAsync(device, inf, pick,
             offer.Source, DriverRef.From(offer) with { Inf = Path.GetFileName(inf) }, options, progress, ct);
     }
 
@@ -182,7 +208,7 @@ public sealed class DemoEngine : IDriverEngine
         {
             Dev(@"PCI\VEN_8086&DEV_A123&SUBSYS_00000000&REV_31\3&11583659&0&FC", "SM Bus Controller", "System", null, 28),
             Dev(@"PCI\VEN_8086&DEV_15B7&SUBSYS_06DE1028&REV_31\3&11583659&0&FE", "Ethernet Connection I219-LM", "Net",
-                new("Intel(R) Ethernet Connection I219-LM", "Intel", DriverVersion.Parse("12.18.9.7"), new(2019, 5, 2), "oem12.inf", @"PCI\VEN_8086&DEV_15B7&SUBSYS_06DE1028", 0x00FF0000)),
+                new("Intel(R) Ethernet Connection I219-LM", "Intel", DriverVersion.Parse("12.18.9.7"), new(2019, 5, 2), "oem12.inf", @"PCI\VEN_8086&DEV_15B7&SUBSYS_06DE1028", 0x00FF0001)),
             Dev(@"PCI\VEN_8086&DEV_A145&SUBSYS_06DE1028&REV_31\3&11583659&0&F8", "PCI standard ISA bridge", "System",
                 new("PCI standard ISA bridge", "Microsoft", DriverVersion.Parse("10.0.26100.1"), new(2006, 6, 21), "machine.inf", @"PCI\CC_0601", 0x00FF2001)),
             Dev(@"HDAUDIO\FUNC_01&VEN_10EC&DEV_0255&SUBSYS_102806DE&REV_1000\4&2BE6AF0E&0&0001", "Realtek Audio", "MEDIA",

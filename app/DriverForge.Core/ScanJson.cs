@@ -47,6 +47,7 @@ public static class ScanJson
                 Match = o.Match.ToString(),
                 Rank = $"0x{o.Rank:X8}",
                 o.Signed,
+                o.Confirmed,
             }),
             assessment = Recommender.Assess(d, r.OffersFor(d)) is var a ? new { State = a.State.ToString(), a.Reason, Recommended = a.Recommended?.Id } : null,
         }),

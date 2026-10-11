@@ -151,22 +151,35 @@ installed driver.
 
 ### 4.2 Microsoft Update Catalog (secondary)
 
-For devices WU has nothing for, search the Catalog by hardware ID:
+Searched for every device with hardware IDs (no bus whitelist); offers that
+duplicate another source's driver are dropped (Windows Update, then This PC,
+then the Catalog).
 
 - Search: `https://www.catalog.update.microsoft.com/Search.aspx?q=<hwid>`,
   HTML table of results (title, products, classification, last updated,
-  version, size, update ID).
+  version, size, update ID). "No results" comes in two shapes: a
+  `noResultText` message, or the results table with no rows.
 - Download links: `POST https://www.catalog.update.microsoft.com/DownloadDialog.aspx`
-  with the update ID; the response contains the `.cab` URL(s).
+  with the update ID; the response contains the `.cab` URL(s) and their
+  base64 SHA-1 digests.
 - Query the most specific hardware ID first and stop at the first one with
   results; never query compatible IDs (far too broad, and slow).
 - Polite client: one request at a time, a cache of results for 24 h
-  (`%ProgramData%\Driver Forge\cache\catalog`), a real User-Agent.
-- Acquire: download the `.cab`, verify its Authenticode signature
-  (`WinVerifyTrust`), expand with the built-in `expand.exe -F:* <cab> <dir>`,
-  then rank the INFs inside with section 5.3 before offering them.
-- The HTML layout is not a documented API. The parser must fail softly
-  (warning, no offers) and have fixture tests from saved pages.
+  (`<data>\cache\catalog\search`), a real User-Agent.
+- **Search results only shortlist** (product filter `CatalogParser.MayFit`,
+  newest two titles per device). Each candidate package up to 60 MB is
+  fetched during the scan: download, check the SHA-1 digest and the
+  Authenticode signature (`WinVerifyTrust`, signer Microsoft), expand with
+  `expand.exe -F:*` (and cabs inside it once more), cached per update ID.
+  The offer then comes from **Windows' own match** of the package's INFs to
+  the device (section 5.0). Bigger packages (graphics drivers) are offered
+  "unconfirmed" from the title (`- 9/29/2017 12:00:00 AM - 12.17.8.7`), and
+  are matched by Windows at install time, which refuses a package with no
+  driver for the device.
+- The HTML layout is not a documented API. The parser fails softly (a page
+  it can't read is saved as `unreadable.html` and skipped; only when no page
+  is readable does the source report a warning) and has fixture tests from
+  saved pages.
 
 ### 4.3 Local folders (optional)
 
@@ -231,6 +244,15 @@ produce offers too. They cost nothing to acquire. Source name: "This PC".
 
 ## 5. Ranking and recommendation
 
+### 5.0 Matching: Windows decides
+
+Every INF-based offer, whatever its source (driver store, Catalog package,
+local folder), is matched by Windows itself: `InfMatcher` hands the package's
+INFs to SetupAPI for the device (`DI_ENUMSINGLEINF`) and takes the driver
+node Windows would use, with Windows' rank, date, version and section. A
+package Windows doesn't match to the device is never offered. Windows Update
+offers are matched by Windows Update.
+
 ### 5.1 Rank (per *How Windows Ranks Driver Packages*)
 
 A rank is a DWORD `0xSSGGTHHH`; **lower is better**.
@@ -282,9 +304,11 @@ driver's real rank (`DEVPKEY_Device_DriverRank`), date and version:
   match can rank an old driver above a newer installed one; Driver Forge
   never offers a downgrade as an update.
 - **Skipped**: the device is ignored, is vendor-managed (5.5) or firmware (5.4), or its best
-  offer ranks at least as well as the installed driver but is older (the
-  reason says so). A worse-ranked older offer, such as an inbox generic
-  driver in the driver store, is no news: the device is up to date.
+  offer ranks strictly better than the installed driver but is older (the
+  reason says so): Windows would pick it, and that would be a downgrade. An
+  older offer at equal or worse rank (an inbox generic driver, an earlier
+  release left in the driver store) is no news: Windows keeps the newer
+  installed driver too, so the device is up to date.
 - **No driver found**: needs a driver, no offers.
 - **Up to date**: everything else.
 
@@ -297,6 +321,27 @@ specific version works).
 Devices of class `Firmware` (UEFI system and device firmware, offered by WU
 as "drivers") are Skipped whenever an offer exists: installing one flashes
 firmware. The user can still pick it by hand.
+
+### 5.6 Matches that suit this PC
+
+Windows Update targets drivers at computer models (computer hardware IDs
+from SMBIOS) as well as devices. The Catalog and local folders lose that
+targeting, so a Windows match there can be a driver made for another PC.
+Seen on the test box: Synaptics and ELAN touchpad "SMBus" drivers matching a
+desktop's Intel SMBus controller (and outranking Intel's), OEM "HotKey"
+filters matching generic HID IDs, a "Pci Bus" driver matching `ACPI\PNP0A08`.
+
+For a **working** device, an offer from an untargeted source is recommended
+only when (`MatchRules`):
+
+- its provider is the current driver's maker ("Intel(R) Corporation" =
+  "INTEL"), or
+- the current driver is Microsoft's inbox driver and the offer matched an ID
+  specific to this device, not a generic class ID (`HID_DEVICE*`, `*\CC_*`,
+  `USB\Class_*`, `ACPI\PNP*`, `*PNP*`, `ACPI\ACPI*`, `ROOT\*`, …).
+
+Other matches stay listed for picking by hand, with a reason. Devices that
+need a driver get Windows' best match from any source.
 
 ### 5.5 Vendor-managed devices
 
@@ -393,7 +438,7 @@ snapshots); show them, don't pre-select them.
 | 2 | Ranking (§5) | `DriverRank`/`DriverComparer`/`Recommender` tests pass; real SetupAPI rank read for staged drivers (§4.4). **Done 2026-10-10**: `DriverNodes` reads Windows' rank; the computed identifier score equals Windows' on every staged node (live test) |
 | 3 | Windows Update source (§4.1) | Optional driver updates listed and one installed on the test box. **Done 2026-10-10**: Intel thermal subsystem (problem 28) installed from WU on the test box, now oem32.inf 10.1.1.12, no problem |
 | 4 | Install + backup + history (§6, §7) | Install, verify, roll back one device on the test box. **Done 2026-10-10**: on the test box the ISA bridge went machine.inf → oem31.inf (driver store offer), rolled back to machine.inf (oem31 exported first), then back to oem31 from the backup; each verified with PnP properties |
-| 5 | Catalog source (§4.2) | A device WU has nothing for gets a Catalog offer, installed from the cab |
+| 5 | Catalog source (§4.2) | A device WU has nothing for gets a Catalog offer, installed from the cab. **Done 2026-10-11**: Intel Watchdog Timer on the test box, 11.7.0.1002 → 11.7.0.1019 from the Catalog cab (oem19 backed up), verified |
 | 6 | Local folders + INF parser (§4.3) | INF fixture tests pass; a folder of OEM drivers produces offers |
 | 7 | Cleanup, scheduling (§8, §9) | |
 
