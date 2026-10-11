@@ -185,9 +185,13 @@ then the Catalog).
 
 The user can add folders that hold extracted driver packages (for example an
 OEM's driver download, or a USB stick of drivers), on the Sources page.
-`.zip` (the framework's `ZipFile`) and `.cab` (`expand.exe`) archives inside
-are unpacked once into the cache, again when they change. `.7z` isn't read:
-it would need a library, and no dependency is worth it yet.
+`.zip` (the framework's `ZipFile`), `.cab` (`expand.exe`) and `.7z`
+(SharpCompress, MIT; its LZMA code is from the public-domain LZMA SDK, not
+7-Zip's LGPL code) archives inside are unpacked once into the cache, again
+when they change. Every entry must land inside the archive's cache folder;
+an archive with an entry that doesn't (`..\`, an absolute path) is skipped
+whole. A solid `.7z` is decompressed front to back in one pass, because
+reading its entries one at a time decompresses the block again for each.
 
 The index and the INF parser only **shortlist**: an INF whose models list
 one of a device's IDs is a candidate, and Windows makes the match
@@ -491,7 +495,7 @@ plain text. No serial numbers: the text is meant to be pasted in public.
 | 3 | Windows Update source (§4.1) | Optional driver updates listed and one installed on the test box. **Done 2026-10-10**: Intel thermal subsystem (problem 28) installed from WU on the test box, now oem32.inf 10.1.1.12, no problem |
 | 4 | Install + backup + history (§6, §7) | Install, verify, roll back one device on the test box. **Done 2026-10-10**: on the test box the ISA bridge went machine.inf → oem31.inf (driver store offer), rolled back to machine.inf (oem31 exported first), then back to oem31 from the backup; each verified with PnP properties |
 | 5 | Catalog source (§4.2) | A device WU has nothing for gets a Catalog offer, installed from the cab. **Done 2026-10-11**: Intel Watchdog Timer on the test box, 11.7.0.1002 → 11.7.0.1019 from the Catalog cab (oem19 backed up), verified |
-| 6 | Local folders + INF parser (§4.3) | INF fixture tests pass; a folder of OEM drivers produces offers. **Done 2026-10-11**: parser and decoration tests pass; on the test box a folder of 81 INFs (folders, a .cab, a .zip) produced the same 25 Windows-confirmed offers as the Catalog source for the same packages |
+| 6 | Local folders + INF parser (§4.3) | INF fixture tests pass; a folder of OEM drivers produces offers. **Done 2026-10-11**: parser and decoration tests pass; on the test box a folder of 81 INFs (folders, a .cab, a .zip) produced the same 25 Windows-confirmed offers as the Catalog source for the same packages. `.7z` (2026-10-11): the same folder as one solid 134 MB archive gave exactly the plain folders' 16 offers (nested .cab/.zip inside a .7z aren't unpacked) |
 | 7 | Cleanup, scheduling (§8, §9) | Uninstall a driver and roll it back; list and remove a ghost; a scheduled scan notifies. **Done 2026-10-11** on the test box: Watchdog oem33 uninstalled (backed up, device fell back to oem19) and rolled back; a ghost USB capture device removed; the scheduled task ran and Windows logged its notification |
 
 Testing rule: driver installs only on the **test box**, never on a daily-use PC.

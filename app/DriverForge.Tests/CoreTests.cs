@@ -712,3 +712,43 @@ public class SystemInfoTests
         Assert.Equal($"Computer{Environment.NewLine}  Model: OptiPlex{Environment.NewLine}  Motherboard: 0NW6H5{Environment.NewLine}", text);
     }
 }
+
+public class SevenZipTests : IDisposable
+{
+    readonly string temp = Path.Combine(Path.GetTempPath(), "df-7z-" + Guid.NewGuid().ToString("N")[..8]);
+    static string Fixture(string name) => Path.Combine(AppContext.BaseDirectory, "Fixtures", name);
+
+    public void Dispose()
+    {
+        if (Directory.Exists(temp)) Directory.Delete(temp, true);
+    }
+
+    [Fact]
+    public void Solid_bcj2_archive_unpacks_with_its_folders()
+    {
+        // LZMA2 + BCJ2, solid: how driver packs are usually made.
+        SevenZip.Extract(Fixture("sample-drivers.7z"), temp, CancellationToken.None);
+        Assert.Equal(File.ReadAllBytes(Fixture("sample.inf")), File.ReadAllBytes(Path.Combine(temp, "Chipset", "sample.inf")));
+        Assert.True(File.Exists(Path.Combine(temp, "readme.txt")));
+    }
+
+    [Fact]
+    public void Entry_outside_the_folder_rejects_the_whole_archive()
+    {
+        Directory.CreateDirectory(temp);
+        string into = Path.Combine(temp, "into");
+        Assert.Throws<InvalidDataException>(() => SevenZip.Extract(Fixture("escape.7z"), into, CancellationToken.None));
+        Assert.False(File.Exists(Path.Combine(temp, "outside.inf")));
+        Assert.False(Directory.Exists(into) && Directory.EnumerateFileSystemEntries(into).Any());
+    }
+
+    [Theory]
+    [InlineData(@"Chipset\sample.inf", true)]
+    [InlineData("Chipset/sample.inf", true)]
+    [InlineData(@"..\outside.inf", false)]
+    [InlineData(@"a\..\..\outside.inf", false)]
+    [InlineData(@"C:\Windows\INF\x.inf", false)]
+    [InlineData(@"\Windows\x.inf", false)]
+    public void Entry_names_stay_inside(string name, bool inside) =>
+        Assert.Equal(inside, SevenZip.Inside(@"C:\cache\archives\abc\", name));
+}

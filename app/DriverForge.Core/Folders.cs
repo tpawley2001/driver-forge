@@ -7,7 +7,7 @@ namespace DriverForge.Core;
 
 /// <summary>
 /// Folders of driver packages the user adds (SPEC §4.3): an OEM's driver
-/// download, a USB stick of drivers. .zip and .cab archives in them are
+/// download, a USB stick of drivers. .zip, .cab and .7z archives in them are
 /// unpacked into the cache. Each folder has an index, so a scan is a lookup;
 /// Windows makes the final match (<see cref="InfMatcher"/>).
 /// </summary>
@@ -57,11 +57,13 @@ public sealed class FolderSource(Func<IReadOnlyList<string>> folders, string cac
 
     string IndexPath(string dir) => Path.Combine(cacheDirectory, "index", Hash(dir) + ".json");
 
-    /// <summary>Unpacks each .zip/.cab once (again when it changes); returns the unpacked folders.</summary>
+    static readonly string[] ArchiveExtensions = [".zip", ".cab", ".7z"];
+
+    /// <summary>Unpacks each .zip/.cab/.7z once (again when it changes); returns the unpacked folders.</summary>
     IEnumerable<string> UnpackArchives(string root, CancellationToken ct)
     {
         var archives = Directory.EnumerateFiles(root, "*.*", SearchOption.AllDirectories)
-            .Where(f => f.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".cab", StringComparison.OrdinalIgnoreCase));
+            .Where(f => ArchiveExtensions.Contains(Path.GetExtension(f), StringComparer.OrdinalIgnoreCase));
         foreach (var archive in archives)
         {
             ct.ThrowIfCancellationRequested();
@@ -74,15 +76,22 @@ public sealed class FolderSource(Func<IReadOnlyList<string>> folders, string cac
                 {
                     if (Directory.Exists(into)) Directory.Delete(into, true);
                     Directory.CreateDirectory(into);
-                    if (archive.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)) ZipFile.ExtractToDirectory(archive, into);
-                    else
+                    switch (Path.GetExtension(archive).ToLowerInvariant())
                     {
-                        var (code, _) = DriverBackup.Run("expand.exe", $"-F:* \"{archive}\" \"{into}\"");
-                        if (code != 0) continue;
+                        case ".zip": ZipFile.ExtractToDirectory(archive, into); break;
+                        case ".7z": SevenZip.Extract(archive, into, ct); break;
+                        default:
+                            var (code, _) = DriverBackup.Run("expand.exe", $"-F:* \"{archive}\" \"{into}\"");
+                            if (code != 0) continue;
+                            break;
                     }
                     File.WriteAllText(done, archive);
                 }
-                catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException) { continue; }
+                catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException
+                                               or SharpCompress.Common.ArchiveException or NotSupportedException)
+                {
+                    continue;
+                }
             }
             yield return into;
         }
@@ -135,4 +144,34 @@ public static class FolderIndex
         File.WriteAllText(indexPath, JsonSerializer.Serialize(fresh));
         return fresh.Where(kv => kv.Value.Ids.Count > 0).Select(kv => (kv.Key, (IReadOnlyList<string>)kv.Value.Ids)).ToList();
     }
+}
+
+/// <summary>.7z through SharpCompress (MIT; SPEC §4.3).</summary>
+internal static class SevenZip
+{
+    public static void Extract(string archive, string into, CancellationToken ct)
+    {
+        string root = Path.GetFullPath(into) + Path.DirectorySeparatorChar;
+        using var sevenZip = SharpCompress.Archives.SevenZip.SevenZipArchive.OpenArchive(archive);
+        // Check every name before writing anything, so a bad archive leaves nothing behind.
+        foreach (var e in sevenZip.Entries)
+            if (e.Key is not { } key || !Inside(root, key))
+                throw new InvalidDataException($"{Path.GetFileName(archive)} has an entry outside its folder: {e.Key}");
+        // One pass front to back: a solid archive decompresses each block once.
+        using var reader = sevenZip.ExtractAllEntries();
+        while (reader.MoveToNextEntry())
+        {
+            ct.ThrowIfCancellationRequested();
+            if (reader.Entry.IsDirectory) continue;
+            string path = Path.GetFullPath(Path.Combine(root, reader.Entry.Key!));
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            using var output = File.Create(path);
+            reader.WriteEntryTo(output);
+        }
+    }
+
+    /// <summary>The entry name resolves to a path under <paramref name="root"/> (no "..\", no absolute path).</summary>
+    internal static bool Inside(string root, string entryName) =>
+        !Path.IsPathRooted(entryName)
+        && Path.GetFullPath(Path.Combine(root, entryName)).StartsWith(root, StringComparison.OrdinalIgnoreCase);
 }
