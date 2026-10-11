@@ -5,11 +5,12 @@
 #   build/check-scan.sh        (deploy first: build/gui.sh deploy)
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
+. "$HERE/common.sh"
 OUT=$(mktemp -d)
 trap 'rm -rf "$OUT"' EXIT
-T='C:\Users\you\driverforge-test'
+T=$TEST_DIR
 
-"$HOME/bin/winps" "
+winps "$TEST_HOST" "
 Remove-Item '$T\\scan.json','$T\\scan.json.error.txt','$T\\wmi.json' -ErrorAction SilentlyContinue
 \$p = Start-Process '$T\\app\\DriverForge.exe' -ArgumentList '--scan-json','$T\\scan.json' -PassThru -Wait
 'exit ' + \$p.ExitCode
@@ -25,8 +26,8 @@ Get-CimInstance Win32_PnPEntity | Where-Object Present | ForEach-Object {
 } | ConvertTo-Json -Depth 4 | Set-Content -Encoding UTF8 '$T\\wmi.json'
 " 2>&1 | grep -v 'CLIXML\|^<Objs' || true
 
-scp -q testbox:driverforge-test/wmi.json "$OUT/wmi.json"
-if ! scp -q testbox:driverforge-test/scan.json "$OUT/scan.json" 2>/dev/null; then
-  scp -q testbox:driverforge-test/scan.json.error.txt /dev/stdout || echo "no scan output"; exit 1
+scp -q "$TEST_HOST":driverforge-test/wmi.json "$OUT/wmi.json"
+if ! scp -q "$TEST_HOST":driverforge-test/scan.json "$OUT/scan.json" 2>/dev/null; then
+  scp -q "$TEST_HOST":driverforge-test/scan.json.error.txt /dev/stdout || echo "no scan output"; exit 1
 fi
 python3 -I "$HERE/compare-scan.py" "$OUT/scan.json" "$OUT/wmi.json"

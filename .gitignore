@@ -2,3 +2,4 @@ dist/
 app/**/bin/
 app/**/obj/
 app/publish/
+build/hosts.env

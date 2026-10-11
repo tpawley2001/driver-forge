@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Drive the app's GUI on the test box (the test box), whose console session is
+# Drive the app's GUI on the test box (TEST_HOST, see common.sh), whose console session is
 # signed in. SSH runs in session 0, which has no desktop, so launches and
 # screenshots go through scheduled tasks in the user's interactive session.
 #   build/gui.sh launch            start DriverForge.exe (elevated, no UAC prompt)
@@ -9,17 +9,18 @@
 #   build/gui.sh appshot out.png [page] [device] [--test-install|--real-install] [--demo|--restore-point-test]
 #                                  the app renders itself off-screen to a PNG
 set -euo pipefail
-APP=${APP:-'C:\Users\you\driverforge-test\app'}
-TMP='C:\Users\you\driverforge-test'
+. "$(dirname "$0")/common.sh"
+TMP=$TEST_DIR
+APP=${APP:-"$TMP\\app"}
 
 run_task() {  # name, exe, args, highest(0/1)
   # -Argument '' is rejected, so pass it only when there are arguments.
   local argpart=""
   [ -n "$3" ] && argpart="-Argument '$3'"
-  "$HOME/bin/winps" "
+  winps "$TEST_HOST" "
 try {
 \$a = New-ScheduledTaskAction -Execute '$2' $argpart -WorkingDirectory '$APP'
-\$p = New-ScheduledTaskPrincipal -UserId 'you' -LogonType Interactive -RunLevel $([ "$4" = 1 ] && echo Highest || echo Limited)
+\$p = New-ScheduledTaskPrincipal -UserId '$WIN_USER' -LogonType Interactive -RunLevel $([ "$4" = 1 ] && echo Highest || echo Limited)
 Register-ScheduledTask -TaskName '$1' -Action \$a -Principal \$p -Force -ErrorAction Stop | Out-Null
 Start-ScheduledTask -TaskName '$1' -ErrorAction Stop
 } catch { 'ERROR: ' + \$_.Exception.Message }
@@ -32,7 +33,7 @@ case "${1:-}" in
     echo launched ;;
   shot)
     out=${2:?local png path}
-    "$HOME/bin/winps" "
+    winps "$TEST_HOST" "
 Set-Content -Encoding UTF8 '$TMP\\shot.ps1' @'
 Add-Type -AssemblyName System.Windows.Forms, System.Drawing
 Add-Type -Namespace W -Name U -MemberDefinition '[DllImport(\"user32.dll\")] public static extern bool SetProcessDPIAware();'
@@ -48,7 +49,7 @@ Remove-Item '$TMP\\shot.png' -ErrorAction SilentlyContinue
 " 2>&1 | grep -v 'CLIXML\|^<Objs' || true
     run_task DriverForgeShot powershell.exe "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File $TMP\\shot.ps1" 0
     for _ in $(seq 1 20); do
-      if scp -q "testbox:driverforge-test/shot.png" "$out" 2>/dev/null; then echo "saved $out"; exit 0; fi
+      if scp -q "$TEST_HOST:driverforge-test/shot.png" "$out" 2>/dev/null; then echo "saved $out"; exit 0; fi
       sleep 1
     done
     echo "no screenshot" >&2; exit 1 ;;
@@ -56,7 +57,7 @@ Remove-Item '$TMP\\shot.png' -ErrorAction SilentlyContinue
     # Capture just the app's window (PrintWindow renders it even when covered),
     # so nothing on the user's desktop has to move.
     out=${2:?local png path}
-    "$HOME/bin/winps" "
+    winps "$TEST_HOST" "
 Set-Content -Encoding UTF8 '$TMP\\win.ps1' @'
 Add-Type -AssemblyName System.Drawing
 Add-Type -Namespace W -Name U -MemberDefinition @\"
@@ -79,18 +80,18 @@ Remove-Item '$TMP\\win.png' -ErrorAction SilentlyContinue
 " 2>&1 | grep -v 'CLIXML\\|^<Objs' || true
     run_task DriverForgeShot powershell.exe "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File $TMP\\win.ps1" 0
     for _ in $(seq 1 20); do
-      if scp -q "testbox:driverforge-test/win.png" "$out" 2>/dev/null; then echo "saved $out"; exit 0; fi
+      if scp -q "$TEST_HOST:driverforge-test/win.png" "$out" 2>/dev/null; then echo "saved $out"; exit 0; fi
       sleep 1
     done
     echo "no window capture" >&2; exit 1 ;;
   deploy)
     # Replace the app but keep its settings and data.
-    "$HOME/bin/winps" "
+    winps "$TEST_HOST" "
 Get-Process DriverForge -ErrorAction SilentlyContinue | Stop-Process -Force
 Get-ChildItem '$APP' -Force -ErrorAction SilentlyContinue | Where-Object { \$_.Name -notin 'settings.json','backups','cache','history.jsonl' } | Remove-Item -Recurse -Force
 New-Item -ItemType Directory -Force '$APP' | Out-Null
 " 2>&1 | grep -v '^#< CLIXML\|^<Objs' || true
-    ssh buildbox "tar -cf - -C C:/Users/you/driverforge-dev/app/publish ." | ssh testbox "tar -xf - -C C:/Users/you/driverforge-test/app"
+    ssh "$BUILD_HOST" "tar -cf - -C $BUILD_DIR/app/publish ." | ssh "$TEST_HOST" "tar -xf - -C C:/Users/$WIN_USER/driverforge-test/app"
     echo deployed ;;
   appshot)
     out=${2:?local png path}
@@ -99,14 +100,14 @@ New-Item -ItemType Directory -Force '$APP' | Out-Null
     [ -n "${4:-}" ] && args="$args --select \"${4}\""
     [ -n "${5:-}" ] && args="$args ${5}"
     [ -n "${6:-}" ] && args="$args ${6}"
-    "$HOME/bin/winps" "Remove-Item '$TMP\\app.png' -ErrorAction SilentlyContinue" >/dev/null 2>&1 || true
+    winps "$TEST_HOST" "Remove-Item '$TMP\\app.png' -ErrorAction SilentlyContinue" >/dev/null 2>&1 || true
     run_task DriverForgeGui "$APP\\DriverForge.exe" "$args" 1
     for _ in $(seq 1 900); do
-      if scp -q "testbox:driverforge-test/app.png" "$out" 2>/dev/null; then echo "saved $out"; exit 0; fi
+      if scp -q "$TEST_HOST:driverforge-test/app.png" "$out" 2>/dev/null; then echo "saved $out"; exit 0; fi
       sleep 2
     done
     echo "the app produced no screenshot" >&2; exit 1 ;;
   stop)
-    "$HOME/bin/winps" "Get-Process DriverForge -ErrorAction SilentlyContinue | Stop-Process -Force; Unregister-ScheduledTask -TaskName DriverForgeGui -Confirm:\$false -ErrorAction SilentlyContinue; Unregister-ScheduledTask -TaskName DriverForgeShot -Confirm:\$false -ErrorAction SilentlyContinue; 'stopped'" 2>&1 | grep -v 'CLIXML\|^<Objs' ;;
+    winps "$TEST_HOST" "Get-Process DriverForge -ErrorAction SilentlyContinue | Stop-Process -Force; Unregister-ScheduledTask -TaskName DriverForgeGui -Confirm:\$false -ErrorAction SilentlyContinue; Unregister-ScheduledTask -TaskName DriverForgeShot -Confirm:\$false -ErrorAction SilentlyContinue; 'stopped'" 2>&1 | grep -v 'CLIXML\|^<Objs' ;;
   *) sed -n 2,8p "$0"; exit 2 ;;
 esac

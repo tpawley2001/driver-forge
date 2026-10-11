@@ -4,15 +4,15 @@
 #   build/build-app.sh test     tests only
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
+. "$HERE/common.sh"
 ROOT=$(dirname "$HERE")
-BOX=${BUILD_HOST:-buildbox}
-REMOTE='C:/Users/you/driverforge-dev/app'
+REMOTE="$BUILD_DIR/app"
 
 tar -C "$ROOT/app" -cf - --exclude='*/bin' --exclude='*/obj' . |
-  ssh "$BOX" "powershell -NoProfile -Command \"if (Test-Path '$REMOTE') { Get-ChildItem '$REMOTE' -Recurse -File | Where-Object { \$_.FullName -notmatch '\\\\(bin|obj|publish)\\\\' } | Remove-Item -Force }; New-Item -ItemType Directory -Force '$REMOTE' | Out-Null; tar -xf - -C '$REMOTE'\""
+  ssh "$BUILD_HOST" "powershell -NoProfile -Command \"if (Test-Path '$REMOTE') { Get-ChildItem '$REMOTE' -Recurse -File | Where-Object { \$_.FullName -notmatch '\\\\(bin|obj|publish)\\\\' } | Remove-Item -Force }; New-Item -ItemType Directory -Force '$REMOTE' | Out-Null; tar -xf - -C '$REMOTE'\""
 
 mode=${1:-publish}
-WINPS_HOST=$BOX "$HOME/bin/winps" "
+winps "$BUILD_HOST" "
 \$env:PATH = 'C:\\Program Files\\dotnet;' + \$env:PATH
 \$env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
 Set-Location '$REMOTE'

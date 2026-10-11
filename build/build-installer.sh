@@ -5,9 +5,9 @@
 # Runs build/build-app.sh first (tests + publish).
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
+. "$HERE/common.sh"
 ROOT=$(dirname "$HERE")
-BOX=${BUILD_HOST:-buildbox}
-REMOTE='C:/Users/you/driverforge-dev/installer'
+REMOTE="$BUILD_DIR/installer"
 VERSION=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' "$ROOT/app/DriverForge/DriverForge.csproj")
 
 "$HERE/build-app.sh"
@@ -18,16 +18,16 @@ cp "$ROOT/installer/DriverForge.iss" "$ROOT/app/DriverForge/Assets/app.ico" "$st
 cp "$ROOT/LICENSE" "$stage/LICENSE.txt"
 printf 'Installed by the Driver Forge installer. Data lives in C:\\ProgramData\\Driver Forge.\r\n' > "$stage/installed.txt"
 tar -C "$stage" -cf - . |
-  ssh "$BOX" "powershell -NoProfile -Command \"Remove-Item -Recurse -Force '$REMOTE' -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Force '$REMOTE' | Out-Null; tar -xf - -C '$REMOTE'\""
+  ssh "$BUILD_HOST" "powershell -NoProfile -Command \"Remove-Item -Recurse -Force '$REMOTE' -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Force '$REMOTE' | Out-Null; tar -xf - -C '$REMOTE'\""
 
-WINPS_HOST=$BOX "$HOME/bin/winps" "
+winps "$BUILD_HOST" "
 Set-Location '$REMOTE'
-& \"\$env:LOCALAPPDATA\\Programs\\Inno Setup 6\\ISCC.exe\" /Q /DAppVersion=$VERSION /DPublishDir=C:\\Users\\you\\driverforge-dev\\app\\publish DriverForge.iss 2>&1 | ForEach-Object { \"\$_\" }
+& \"\$env:LOCALAPPDATA\\Programs\\Inno Setup 6\\ISCC.exe\" /Q /DAppVersion=$VERSION /DPublishDir=C:\\Users\\$WIN_USER\\driverforge-dev\\app\\publish DriverForge.iss 2>&1 | ForEach-Object { \"\$_\" }
 if (\$LASTEXITCODE -ne 0) { 'ISCC FAILED'; exit 1 }
-Compress-Archive -Path C:\\Users\\you\\driverforge-dev\\app\\publish\\* -DestinationPath output\\DriverForge-$VERSION-portable.zip -Force
+Compress-Archive -Path C:\\Users\\$WIN_USER\\driverforge-dev\\app\\publish\\* -DestinationPath output\\DriverForge-$VERSION-portable.zip -Force
 Get-ChildItem output | ForEach-Object { '{0}  {1:N1} MB' -f \$_.Name, (\$_.Length/1MB) }
 " 2>&1 | grep -v '^#< CLIXML\|^<Objs'
 
 mkdir -p "$ROOT/dist"
-scp -q "$BOX:driverforge-dev/installer/output/DriverForge-Setup-$VERSION.exe" "$BOX:driverforge-dev/installer/output/DriverForge-$VERSION-portable.zip" "$ROOT/dist/"
+scp -q "$BUILD_HOST:driverforge-dev/installer/output/DriverForge-Setup-$VERSION.exe" "$BUILD_HOST:driverforge-dev/installer/output/DriverForge-$VERSION-portable.zip" "$ROOT/dist/"
 ls -l "$ROOT/dist"
