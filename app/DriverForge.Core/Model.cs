@@ -103,6 +103,11 @@ public interface IDriverEngine
     Task<ScanResult> ScanAsync(IProgress<string>? progress, CancellationToken ct = default);
     Task<InstallResult> InstallAsync(Device device, DriverOffer offer, InstallOptions options,
         IProgress<InstallStep>? progress, CancellationToken ct = default);
+    /// <summary>Past installs and rollbacks, newest first.</summary>
+    IReadOnlyList<HistoryEntry> History();
+    /// <summary>Puts back the driver a history entry replaced (SPEC §7).</summary>
+    Task<InstallResult> RollbackAsync(HistoryEntry entry, InstallOptions options,
+        IProgress<InstallStep>? progress, CancellationToken ct = default);
 }
 
 public sealed class EngineException(string message) : Exception(message);

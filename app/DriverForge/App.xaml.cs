@@ -92,6 +92,13 @@ public partial class App : Application
             // explicitly; either way only the one --select'ed device.
             if ((testInstall || realInstall) && select is not null && main.Drivers.Selected is { CanInstall: true } row)
                 await main.InstallAsync([row], testMode: !realInstall);
+            // --rollback <device>: roll back that device's newest change (real unless test mode is on).
+            if (Arg(Environment.GetCommandLineArgs(), "--rollback") is { } rollback
+                && main.Engine.History().FirstOrDefault(h => h.CanRollBack && h.DeviceName.Contains(rollback, StringComparison.OrdinalIgnoreCase)) is { } entry)
+            {
+                await main.History.RollBackAsync(entry, askFirst: false);
+                page ??= "History";
+            }
             if (page is not null) main.NavigateTo(page);
             await Task.Delay(800);
             await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);

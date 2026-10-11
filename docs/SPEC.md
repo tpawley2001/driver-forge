@@ -319,8 +319,11 @@ unless the user picks a driver by hand: `PCI\VEN_10DE` (NVIDIA App),
      device with a specific package (needed when the package isn't Windows'
      own best pick, for example a hand-picked older driver):
      `SetupDiBuildDriverInfoList` with `DI_ENUMSINGLEINF` on that device,
-     select the driver node with `SetupDiSetSelectedDriverW`, then
-     `DiInstallDevice(…, DIIDFLAG_INSTALLSPECIFICDRIVER, &reboot)`.
+     pass that driver node to `DiInstallDevice(hwnd, set, device, node, 0, &reboot)`
+     (a non-null node installs exactly that driver). The package must be in
+     the driver store first: `SetupCopyOEMInfW(inf, NULL, SPOST_PATH, 0, …)`
+     stages it and returns its `oemNN.inf` (packages already under
+     `%windir%\INF` skip this).
    - Reboot flag: `NeedsRestart` = the API's reboot out-param, or
      `ERROR_SUCCESS_REBOOT_REQUIRED`.
 4. **Verify**: re-read the device's driver properties; the install succeeded
@@ -338,7 +341,9 @@ the point through WMI, and waits until it's listed.
 
 ### 6.3 Test mode
 
-Every step runs except 6.1.3. The UI marks results "Simulated".
+Every step runs except 6.1.3. The UI marks results "Simulated". Instead of
+installing, test mode checks with `DI_ENUMSINGLEINF` that the package really
+has the chosen driver for the device. WU offers stop after the download.
 
 ---
 
@@ -387,7 +392,7 @@ snapshots); show them, don't pre-select them.
 | 1 | Device scan (§3) | Device list on the test box matches Device Manager, IDs in order, installed-driver fields filled. **Done 2026-10-10**: `build/check-scan.sh` matches WMI's PnP view on the test box exactly (155 devices) |
 | 2 | Ranking (§5) | `DriverRank`/`DriverComparer`/`Recommender` tests pass; real SetupAPI rank read for staged drivers (§4.4). **Done 2026-10-10**: `DriverNodes` reads Windows' rank; the computed identifier score equals Windows' on every staged node (live test) |
 | 3 | Windows Update source (§4.1) | Optional driver updates listed and one installed on the test box. **Done 2026-10-10**: Intel thermal subsystem (problem 28) installed from WU on the test box, now oem32.inf 10.1.1.12, no problem |
-| 4 | Install + backup + history (§6, §7) | Install, verify, roll back one device on the test box |
+| 4 | Install + backup + history (§6, §7) | Install, verify, roll back one device on the test box. **Done 2026-10-10**: on the test box the ISA bridge went machine.inf → oem31.inf (driver store offer), rolled back to machine.inf (oem31 exported first), then back to oem31 from the backup; each verified with PnP properties |
 | 5 | Catalog source (§4.2) | A device WU has nothing for gets a Catalog offer, installed from the cab |
 | 6 | Local folders + INF parser (§4.3) | INF fixture tests pass; a folder of OEM drivers produces offers |
 | 7 | Cleanup, scheduling (§8, §9) | |

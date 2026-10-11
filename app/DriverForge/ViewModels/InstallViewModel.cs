@@ -107,14 +107,14 @@ public sealed partial class InstallViewModel : ObservableObject
             if (r.Simulated) { item.Status = ItemStatus.Simulated; item.Detail = "Simulated · nothing was changed"; }
             else if (r.Ok && r.NeedsRestart) { item.Status = ItemStatus.NeedsRestart; item.Detail = "Installed · restart to finish"; }
             else if (r.Ok) { item.Status = ItemStatus.Installed; item.Detail = "Installed"; }
-            else { item.Status = ItemStatus.Failed; item.Detail = $"Failed (error 0x{r.ErrorCode:X8})"; }
+            else { item.Status = ItemStatus.Failed; item.Detail = "Failed: " + r.Message; }
             if (!r.Simulated) NeedsRestart |= r.NeedsRestart;
             AddLog($"{item.Name}: {r.Message}");
         }
         catch (Exception ex) when (ex is EngineException or IOException or InvalidOperationException or UnauthorizedAccessException)
         {
             item.Status = ItemStatus.Failed;
-            item.Detail = "Failed";
+            item.Detail = "Failed: " + ex.Message;
             AddLog($"{item.Name}: {ex.Message}");
         }
     }

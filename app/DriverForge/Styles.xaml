@@ -35,6 +35,7 @@
 
     <BooleanToVisibilityConverter x:Key="BoolToVis" />
     <conv:InverseBoolToVisibility x:Key="InvBoolToVis" />
+    <conv:InverseBool x:Key="InvBool" />
     <conv:NullToVisibility x:Key="NullToVis" />
     <conv:NullToVisibility x:Key="NotNullToVis" Invert="True" />
     <conv:StateBrush x:Key="StateBg" Part="Background" />

@@ -298,3 +298,56 @@ public class WindowsUpdateTests
     public void Update_for_another_device_is_no_offer() =>
         Assert.Null(WindowsUpdateSource.ToOffer(Dev, new("x", "t", "PCI\\VEN_10EC&DEV_8168", null, "", "", "", "", 0)));
 }
+
+public class HistoryTests
+{
+    static DriverRef Ref(string inf) => new(inf, "SEC", "1.0.0.0", "2020-01-01", "d", "p");
+    static HistoryEntry Entry(DriverRef? from, string? backup, bool ok = true, bool simulated = false) =>
+        new(new DateTime(2026, 10, 10, 12, 0, 0), "PCI\\X\\1", "Dev", from, Ref("oem9.inf"), "This PC", ok, simulated, false, "m", backup);
+
+    [Fact] public void Inbox_driver_can_be_put_back_without_a_backup() => Assert.True(Entry(Ref("machine.inf"), null).CanRollBack);
+    [Fact] public void Third_party_driver_needs_its_backup() => Assert.False(Entry(Ref("oem3.inf"), null).CanRollBack);
+    [Fact] public void Third_party_driver_with_backup_can_be_put_back() => Assert.True(Entry(Ref("oem3.inf"), "C:\\b").CanRollBack);
+    [Fact] public void No_previous_driver_is_no_rollback() => Assert.False(Entry(null, null).CanRollBack);
+    [Fact] public void Failed_or_simulated_change_is_no_rollback()
+    {
+        Assert.False(Entry(Ref("machine.inf"), null, ok: false).CanRollBack);
+        Assert.False(Entry(Ref("machine.inf"), null, simulated: true).CanRollBack);
+    }
+
+    [Fact]
+    public void Log_round_trips_newest_first_and_skips_damaged_lines()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"df-history-{Guid.NewGuid():N}.jsonl");
+        try
+        {
+            var log = new InstallHistory(path);
+            log.Append(Entry(Ref("machine.inf"), null));
+            File.AppendAllText(path, "{not json\n");
+            log.Append(Entry(Ref("oem3.inf"), "C:\\b") with { DeviceName = "Second" });
+            var all = log.Load();
+            Assert.Equal(2, all.Count);
+            Assert.Equal("Second", all[0].DeviceName);
+            Assert.Equal("oem3.inf", all[0].From!.Inf);
+        }
+        finally { File.Delete(path); }
+    }
+}
+
+public class InstallMatchTests
+{
+    static DriverNode Node(string section, string version, string desc = "D") =>
+        new(desc, "M", "P", DriverVersion.Parse(version), null, "C:\\Windows\\INF\\oem1.inf", section, "X", [], 0, true, false);
+
+    [Fact] public void Picks_by_section_and_version() =>
+        Assert.True(WindowsEngine.Matches(Node("Needs_ISAPNP_DRV", "10.1.1.45"), "needs_isapnp_drv", DriverVersion.Parse("10.1.1.45"), "other"));
+    [Fact] public void Wrong_version_is_not_the_node() =>
+        Assert.False(WindowsEngine.Matches(Node("S", "10.1.1.44"), "S", DriverVersion.Parse("10.1.1.45"), "D"));
+    [Fact] public void Without_a_section_the_description_decides() =>
+        Assert.True(WindowsEngine.Matches(Node("S", "1.0", "Intel LPC"), null, DriverVersion.Unknown, "intel lpc"));
+    [Theory]
+    [InlineData("2015-09-21", "2015-09-20", true)]
+    [InlineData("2015-09-21", "2015-09-23", false)]
+    public void Wu_dates_allow_a_day(string a, string b, bool close) =>
+        Assert.Equal(close, WindowsEngine.DatesClose(DateOnly.Parse(a), DateOnly.Parse(b)));
+}

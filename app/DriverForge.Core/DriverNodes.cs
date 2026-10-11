@@ -34,32 +34,41 @@ public static class DriverNodes
     {
         using var dev = DeviceHandle.Open(instanceId);
         if (dev is null) return [];
-        var info = dev.Info;
         if (inf is not null && !dev.SetSingleInf(inf)) return [];
-        if (!Native.SetupDiBuildDriverInfoList(dev.Set, ref info, Native.SPDIT_COMPATDRIVER)) return [];
+        return WithNodes(dev, nodes => nodes.Select(n => n.Node).ToList()) ?? [];
+    }
+
+    /// <summary>
+    /// Builds the device's compatible-driver list and hands every node to
+    /// <paramref name="use"/> while the list is still alive (an install needs
+    /// the native node). Null when SetupAPI can't build the list.
+    /// </summary>
+    internal static T? WithNodes<T>(DeviceHandle dev, Func<List<(Native.SP_DRVINFO_DATA_V2 Drv, DriverNode Node)>, T> use)
+    {
+        if (!Native.SetupDiBuildDriverInfoList(dev.Set, ref dev.Info, Native.SPDIT_COMPATDRIVER)) return default;
         try
         {
-            var nodes = new List<DriverNode>();
+            var nodes = new List<(Native.SP_DRVINFO_DATA_V2, DriverNode)>();
             var drv = new Native.SP_DRVINFO_DATA_V2 { cbSize = (uint)Marshal.SizeOf<Native.SP_DRVINFO_DATA_V2>() };
-            for (uint i = 0; Native.SetupDiEnumDriverInfoW(dev.Set, ref info, Native.SPDIT_COMPATDRIVER, i, ref drv); i++)
+            for (uint i = 0; Native.SetupDiEnumDriverInfoW(dev.Set, ref dev.Info, Native.SPDIT_COMPATDRIVER, i, ref drv); i++)
             {
                 var p = new Native.SP_DRVINSTALL_PARAMS { cbSize = (uint)Marshal.SizeOf<Native.SP_DRVINSTALL_PARAMS>() };
-                if (!Native.SetupDiGetDriverInstallParamsW(dev.Set, ref info, ref drv, ref p)) continue;
+                if (!Native.SetupDiGetDriverInstallParamsW(dev.Set, ref dev.Info, ref drv, ref p)) continue;
                 if ((p.Flags & Native.DNF_BAD_DRIVER) != 0) continue;
-                var detail = Detail(dev.Set, ref info, ref drv);
+                var detail = Detail(dev.Set, ref dev.Info, ref drv);
                 if (detail is null) continue;
                 var (section, infFile, hwid, compat) = detail.Value;
-                nodes.Add(new DriverNode(drv.Description, drv.MfgName, drv.ProviderName,
+                nodes.Add((drv, new DriverNode(drv.Description, drv.MfgName, drv.ProviderName,
                     Version(drv.DriverVersion), PropertyData.FileTimeDate(drv.DriverDate),
                     infFile, section, hwid, compat, p.Rank,
                     Signed: (p.Flags & (Native.DNF_INF_IS_SIGNED | Native.DNF_AUTHENTICODE_SIGNED)) != 0,
-                    IsInstalled: (p.Flags & Native.DNF_INSTALLEDDRIVER) != 0));
+                    IsInstalled: (p.Flags & Native.DNF_INSTALLEDDRIVER) != 0)));
             }
-            return nodes;
+            return use(nodes);
         }
         finally
         {
-            Native.SetupDiDestroyDriverInfoList(dev.Set, ref info, Native.SPDIT_COMPATDRIVER);
+            Native.SetupDiDestroyDriverInfoList(dev.Set, ref dev.Info, Native.SPDIT_COMPATDRIVER);
         }
     }
 

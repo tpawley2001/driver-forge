@@ -37,6 +37,13 @@ public static class DeviceScanner
         }
     }
 
+    /// <summary>One device, read fresh (used to verify an install).</summary>
+    public static Device? ReadOne(string instanceId)
+    {
+        using var dev = DeviceHandle.Open(instanceId);
+        return dev is null ? null : Read(dev.Set, dev.Info);
+    }
+
     static Device? Read(nint set, Native.SP_DEVINFO_DATA info)
     {
         string? id = InstanceId(set, info);

@@ -40,14 +40,131 @@ public sealed class WindowsEngine(string dataDirectory) : IDriverEngine
             warnings);
     }
 
-    public Task<InstallResult> InstallAsync(Device device, DriverOffer offer, InstallOptions options,
+    InstallHistory HistoryLog => new(Path.Combine(DataDirectory, "history.jsonl"));
+    string BackupsDirectory => Path.Combine(DataDirectory, "backups");
+
+    public IReadOnlyList<HistoryEntry> History() => HistoryLog.Load();
+
+    /// <summary>SPEC §6.1: acquire, back up, install, verify, record.</summary>
+    public async Task<InstallResult> InstallAsync(Device device, DriverOffer offer, InstallOptions options,
         IProgress<InstallStep>? progress, CancellationToken ct = default)
     {
         var source = Sources.FirstOrDefault(s => s.Name == offer.Source)
             ?? throw new EngineException($"No source named {offer.Source}.");
-        if (source is IInstallingSource own) return own.InstallAsync(offer, options, progress, ct);
-        throw new EngineException("Installing from INF packages isn't built yet (milestone 4 in docs/SPEC.md).");
+        if (source is IInstallingSource own)
+            return await RecordAsync(device, offer.Source, DriverRef.From(offer), options, progress, async backup =>
+            {
+                var r = await own.InstallAsync(offer, options, progress, ct);
+                if (!r.Ok || r.Simulated) return r;
+                progress?.Report(InstallStep.Verifying);
+                return Verify(device.InstanceId, r, i => DatesClose(i.Date, offer.Date), offer.Description);
+            });
+
+        if (!offer.IsLocal) progress?.Report(InstallStep.Downloading);
+        string inf;
+        try { inf = await source.AcquireAsync(offer, progress, ct); }
+        catch (EngineException ex) { return Fail(device, offer.Source, DriverRef.From(offer), options, ex.Message); }
+        return await InstallPackageAsync(device, inf, n => Matches(n, offer.InfSection, offer.Version, offer.Description),
+            offer.Source, DriverRef.From(offer) with { Inf = Path.GetFileName(inf) }, options, progress, ct);
     }
+
+    public async Task<InstallResult> RollbackAsync(HistoryEntry entry, InstallOptions options,
+        IProgress<InstallStep>? progress, CancellationToken ct = default)
+    {
+        const string label = "Rollback";
+        var device = await Task.Run(() => DeviceScanner.ReadOne(entry.InstanceId), ct);
+        if (device is null || entry.From is not { } from || !entry.CanRollBack)
+            return new(false, false, 0, device is null ? "The device isn't connected." : "There's nothing to roll back to.");
+        string? inf = DriverBackup.IsThirdParty(from.Inf)
+            ? DriverBackup.FindInf(entry.BackupFolder!, from.Inf)
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "INF", from.Inf);
+        if (inf is null || !File.Exists(inf))
+            return Fail(device, label, from, options, "The backup of the old driver is missing.");
+        return await InstallPackageAsync(device, inf, n => Matches(n, from.Section, DriverVersion.Parse(from.Version), from.Description),
+            label, from, options, progress, ct);
+    }
+
+    /// <summary>Back up, stage, install one node on one device, verify (SPEC §6.1 steps 2–4).</summary>
+    Task<InstallResult> InstallPackageAsync(Device device, string inf, Func<DriverNode, bool> pick, string source, DriverRef target,
+        InstallOptions options, IProgress<InstallStep>? progress, CancellationToken ct) =>
+        RecordAsync(device, source, target, options, progress, _ => Task.Run(() =>
+        {
+            ct.ThrowIfCancellationRequested();
+            progress?.Report(InstallStep.Installing);
+            if (options.TestMode)
+            {
+                // Everything but the install (SPEC §6.3): still prove the package has this driver for the device.
+                var node = DriverNodes.FromInf(device.InstanceId, inf).FirstOrDefault(pick);
+                return node is null
+                    ? new InstallResult(false, false, 0, $"{Path.GetFileName(inf)} doesn't contain the chosen driver for this device.")
+                    : new InstallResult(true, false, 0, $"Would install {node.Description} {node.Version} from {Path.GetFileName(inf)} (test mode)", Simulated: true);
+            }
+            string storeInf = DriverInstaller.Stage(inf);
+            bool reboot = DriverInstaller.InstallOnDevice(device.InstanceId, storeInf, pick);
+            progress?.Report(InstallStep.Verifying);
+            var r = new InstallResult(true, reboot, 0, reboot ? "Installed; restart to finish" : "Installed");
+            return Verify(device.InstanceId, r, i => string.Equals(i.Inf, Path.GetFileName(storeInf), StringComparison.OrdinalIgnoreCase), target.Description);
+        }, ct));
+
+    /// <summary>Backs up the current driver, runs the install, and writes the history entry whatever happens.</summary>
+    async Task<InstallResult> RecordAsync(Device device, string source, DriverRef target, InstallOptions options,
+        IProgress<InstallStep>? progress, Func<string?, Task<InstallResult>> install)
+    {
+        var at = DateTime.Now;
+        string? backup = null;
+        InstallResult result;
+        try
+        {
+            if (device.Installed is { } cur && DriverBackup.IsThirdParty(cur.Inf))
+            {
+                progress?.Report(InstallStep.BackingUp);
+                backup = await Task.Run(() => DriverBackup.Export(cur.Inf, BackupsDirectory, at));
+            }
+            result = await install(backup);
+        }
+        catch (EngineException ex) { result = new(false, false, 0, ex.Message); }
+
+        var after = result.Ok && !result.Simulated ? DeviceScanner.ReadOne(device.InstanceId)?.Installed : null;
+        HistoryLog.Append(new HistoryEntry(at, device.InstanceId, device.DisplayName,
+            device.Installed is { } before ? DriverRef.From(before) : null,
+            after is not null ? DriverRef.From(after) : target,
+            source, result.Ok, result.Simulated, result.NeedsRestart, result.Message, backup));
+        return result;
+    }
+
+    InstallResult Fail(Device device, string source, DriverRef target, InstallOptions options, string message)
+    {
+        HistoryLog.Append(new HistoryEntry(DateTime.Now, device.InstanceId, device.DisplayName,
+            device.Installed is { } before ? DriverRef.From(before) : null, target, source, false, options.TestMode, false, message, null));
+        return new(false, false, 0, message);
+    }
+
+    /// <summary>
+    /// SPEC §6.1 step 4: the device must now use the new driver and work, unless
+    /// Windows asked for a restart (then the switch happens at boot).
+    /// </summary>
+    static InstallResult Verify(string instanceId, InstallResult r, Func<InstalledDriver, bool> isNew, string description)
+    {
+        if (r.NeedsRestart) return r;
+        var now = DeviceScanner.ReadOne(instanceId);
+        if (now is null) return r with { Message = r.Message + " (the device disappeared; it may come back after a restart)" };
+        if (now.Installed is not { } i || !isNew(i))
+            return new(false, false, 0, $"Windows reported success, but the device still uses {(now.Installed is { } o ? $"{o.Description} {o.Version} ({o.Inf})" : "no driver")}.");
+        if (now.ProblemCode != 0)
+            return new(false, false, 0, $"{description} is installed, but the device reports problem code {now.ProblemCode}.");
+        return r;
+    }
+
+    internal static bool Matches(DriverNode n, string? section, DriverVersion version, string description)
+    {
+        if (!string.IsNullOrEmpty(section))
+            return string.Equals(n.Section, section, StringComparison.OrdinalIgnoreCase) && (!version.IsKnown || n.Version.CompareTo(version) == 0);
+        return string.Equals(n.Description, description, StringComparison.OrdinalIgnoreCase) && (!version.IsKnown || n.Version.CompareTo(version) == 0);
+    }
+
+    /// <summary>WU's driver date is a local midnight, SetupAPI's a UTC one: allow a day either way.</summary>
+    internal static bool DatesClose(DateOnly? a, DateOnly? b) =>
+        a is null || b is null || Math.Abs(a.Value.DayNumber - b.Value.DayNumber) <= 1;
 }
 
 /// <summary>Made-up devices and offers for working on the UI. Installs are always simulated.</summary>
@@ -115,6 +232,20 @@ public sealed class DemoEngine : IDriverEngine
             progress?.Report(step);
             await Task.Delay(400, ct);
         }
+        history.Add(new(DateTime.Now, device.InstanceId, device.DisplayName,
+            device.Installed is { } i ? DriverRef.From(i) : null, DriverRef.From(offer), offer.Source, true, true, false, "Simulated (demo data)", null));
+        return new(true, false, 0, "Simulated (demo data)", Simulated: true);
+    }
+
+    readonly List<HistoryEntry> history = [];
+
+    public IReadOnlyList<HistoryEntry> History() => Enumerable.Reverse(history).ToList();
+
+    public async Task<InstallResult> RollbackAsync(HistoryEntry entry, InstallOptions options,
+        IProgress<InstallStep>? progress, CancellationToken ct = default)
+    {
+        progress?.Report(InstallStep.Installing);
+        await Task.Delay(400, ct);
         return new(true, false, 0, "Simulated (demo data)", Simulated: true);
     }
 
