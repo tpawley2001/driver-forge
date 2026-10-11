@@ -8,6 +8,9 @@ public sealed record DriverRef(string Inf, string Section, string Version, strin
     public static DriverRef From(InstalledDriver d) =>
         new(d.Inf, d.InfSection, d.Version.ToString(), d.Date?.ToString("yyyy-MM-dd"), d.Description, d.Provider);
 
+    /// <summary>The "to" side of an uninstall.</summary>
+    public static readonly DriverRef Removed = new("", "", "", null, "Driver removed", "");
+
     public static DriverRef From(DriverOffer o) =>
         new(o.Inf is null ? "" : Path.GetFileName(o.Inf), o.InfSection ?? "", o.Version.ToString(), o.Date?.ToString("yyyy-MM-dd"), o.Description, o.Provider);
 

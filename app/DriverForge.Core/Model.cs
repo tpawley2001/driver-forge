@@ -18,7 +18,10 @@ public sealed record Device(
     IReadOnlyList<string> CompatibleIds,
     int ProblemCode,
     InstalledDriver? Installed,
-    Guid ClassGuid = default)
+    Guid ClassGuid = default,
+    bool IsPresent = true,
+    DateTime? LastArrival = null,
+    DateTime? LastRemoval = null)
 {
     // CM_PROB_NOT_CONFIGURED, CM_PROB_REINSTALL, CM_PROB_FAILED_INSTALL
     static readonly int[] NoDriverProblems = [1, 18, 28];
@@ -109,6 +112,11 @@ public interface IDriverEngine
     /// <summary>Puts back the driver a history entry replaced (SPEC §7).</summary>
     Task<InstallResult> RollbackAsync(HistoryEntry entry, InstallOptions options,
         IProgress<InstallStep>? progress, CancellationToken ct = default);
+    /// <summary>Removes the device's third-party driver from Windows, backed up first (SPEC §8.1).</summary>
+    Task<InstallResult> UninstallDriverAsync(Device device, InstallOptions options, CancellationToken ct = default);
+    /// <summary>Devices Windows remembers that aren't connected (SPEC §8.2).</summary>
+    Task<IReadOnlyList<Device>> GhostsAsync(CancellationToken ct = default);
+    Task RemoveGhostAsync(Device ghost, CancellationToken ct = default);
 }
 
 public sealed class EngineException(string message) : Exception(message);

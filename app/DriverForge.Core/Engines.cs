@@ -118,6 +118,29 @@ public sealed class WindowsEngine(string dataDirectory) : IDriverEngine
             label, from, options, progress, ct);
     }
 
+    public async Task<InstallResult> UninstallDriverAsync(Device device, InstallOptions options, CancellationToken ct = default)
+    {
+        if (device.Installed is not { } cur || !DriverBackup.IsThirdParty(cur.Inf))
+            return new(false, false, 0, "Only drivers that didn't come with Windows can be uninstalled.");
+        return await RecordAsync(device, "Uninstall", DriverRef.Removed, options, null, _ => Task.Run(() =>
+        {
+            if (options.TestMode)
+                return new InstallResult(true, false, 0, $"Would remove {cur.Inf} (test mode)", Simulated: true);
+            bool reboot = DriverRemoval.Delete(cur.Inf);
+            var now = DeviceScanner.ReadOne(device.InstanceId);
+            if (!reboot && now?.Installed is { } i && string.Equals(i.Inf, cur.Inf, StringComparison.OrdinalIgnoreCase))
+                return new InstallResult(false, false, 0, $"Windows still uses {cur.Inf} for this device.");
+            string message = now?.Installed is { } next ? $"Removed; the device now uses {next.Description} ({next.Inf})" : "Removed";
+            return new InstallResult(true, reboot, 0, reboot ? message + "; restart to finish" : message);
+        }, ct));
+    }
+
+    public Task<IReadOnlyList<Device>> GhostsAsync(CancellationToken ct = default) =>
+        Task.Run(() => DeviceScanner.Ghosts(ct), ct);
+
+    public Task RemoveGhostAsync(Device ghost, CancellationToken ct = default) =>
+        Task.Run(() => Core.Ghosts.Remove(ghost.InstanceId), ct);
+
     /// <summary>Back up, stage, install one node on one device, verify (SPEC §6.1 steps 2–4).</summary>
     Task<InstallResult> InstallPackageAsync(Device device, string inf, Func<DriverNode, bool> pick, string source, DriverRef target,
         InstallOptions options, IProgress<InstallStep>? progress, CancellationToken ct) =>
@@ -192,9 +215,22 @@ public sealed class WindowsEngine(string dataDirectory) : IDriverEngine
     internal static bool Matches(DriverNode n, string? section, DriverVersion version, string description)
     {
         if (!string.IsNullOrEmpty(section))
-            return string.Equals(n.Section, section, StringComparison.OrdinalIgnoreCase) && (!version.IsKnown || n.Version.CompareTo(version) == 0);
+            return SameSection(n.Section, section) && (!version.IsKnown || n.Version.CompareTo(version) == 0);
         return string.Equals(n.Description, description, StringComparison.OrdinalIgnoreCase) && (!version.IsKnown || n.Version.CompareTo(version) == 0);
     }
+
+    /// <summary>
+    /// A driver node names its models install section ("ICCWDT"); a device's
+    /// DriverInfSection property names the decorated one Windows ran
+    /// ("ICCWDT.NT", "Inst.NTamd64"). Same section either way.
+    /// </summary>
+    internal static bool SameSection(string a, string b) =>
+        string.Equals(SectionBase(a), SectionBase(b), StringComparison.OrdinalIgnoreCase);
+
+    static readonly System.Text.RegularExpressions.Regex PlatformSuffix =
+        new(@"\.nt(x86|amd64|arm64|arm|ia64)?(\..*)?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    internal static string SectionBase(string section) => PlatformSuffix.Replace(section, "");
 
     /// <summary>WU's driver date is a local midnight, SetupAPI's a UTC one: allow a day either way.</summary>
     internal static bool DatesClose(DateOnly? a, DateOnly? b) =>
@@ -272,6 +308,20 @@ public sealed class DemoEngine : IDriverEngine
     }
 
     readonly List<HistoryEntry> history = [];
+
+    public Task<InstallResult> UninstallDriverAsync(Device device, InstallOptions options, CancellationToken ct = default) =>
+        Task.FromResult(new InstallResult(true, false, 0, "Simulated (demo data)", Simulated: true));
+
+    public Task<IReadOnlyList<Device>> GhostsAsync(CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<Device>>(
+        [
+            new(@"USB\VID_534D&PID_2109&MI_00\6&EDA53C3&0&0000", "USB Video", "USB Video", "", "Camera", [@"USB\VID_534D&PID_2109&MI_00"], [], 0, null,
+                IsPresent: false, LastRemoval: new DateTime(2025, 11, 2, 18, 4, 0)),
+            new(@"STORAGE\VOLUME\{ECD3589C-F340-11ED-BFD7-B88A606D4B19}#0000000000100000", "Volume", "Volume", "", "Volume", [@"STORAGE\Volume"], [], 0, null,
+                IsPresent: false, LastRemoval: new DateTime(2026, 3, 9, 9, 12, 0)),
+        ]);
+
+    public Task RemoveGhostAsync(Device ghost, CancellationToken ct = default) => Task.Delay(200, ct);
 
     public IReadOnlyList<HistoryEntry> History() => Enumerable.Reverse(history).ToList();
 

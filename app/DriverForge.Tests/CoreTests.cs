@@ -352,6 +352,17 @@ public class InstallMatchTests
 
     [Fact] public void Picks_by_section_and_version() =>
         Assert.True(WindowsEngine.Matches(Node("Needs_ISAPNP_DRV", "10.1.1.45"), "needs_isapnp_drv", DriverVersion.Parse("10.1.1.45"), "other"));
+    [Theory]
+    [InlineData("ICCWDT", "ICCWDT.NT")]
+    [InlineData("Inst", "Inst.NTamd64")]
+    [InlineData("Inst", "inst.ntamd64.10.0...17763")]
+    [InlineData("MSISADRV", "MSISADRV")]
+    public void Node_section_matches_the_decorated_device_section(string node, string device) =>
+        Assert.True(WindowsEngine.Matches(Node(node, "1.0"), device, DriverVersion.Parse("1.0"), ""));
+
+    [Fact] public void Different_section_with_nt_in_its_name_is_still_different() =>
+        Assert.False(WindowsEngine.SameSection("NTFS_Inst", "Other.NT"));
+
     [Fact] public void Wrong_version_is_not_the_node() =>
         Assert.False(WindowsEngine.Matches(Node("S", "10.1.1.44"), "S", DriverVersion.Parse("10.1.1.45"), "D"));
     [Fact] public void Without_a_section_the_description_decides() =>
@@ -613,4 +624,31 @@ public class MatchCacheTests
             && a.Version.CompareTo(b.Version) == 0 && a.Date == b.Date && a.InfCompatibleIds.SequenceEqual(b.InfCompatibleIds);
         public int GetHashCode(DriverNode? n) => 0;
     }
+}
+
+public class CleanupTests
+{
+    static Device Ghost(string id, string cls) => new(id, "x", "x", "", cls, [], [], 0, null, IsPresent: false);
+
+    [Theory]
+    [InlineData(@"USB\VID_534D&PID_2109&MI_00\6&EDA53C3&0&0000", "Camera", true)]
+    [InlineData(@"SCSI\DISK&VEN_ASMT&PROD_ASM1156-PM\6&4AC6E73&0&000000", "DiskDrive", true)]
+    [InlineData(@"STORAGE\VOLUME\{ECD3589C-F340-11ED-BFD7-B88A606D4B19}#0000000000100000", "Volume", false)]
+    [InlineData(@"SWD\WPDBUSENUM\{0A2606AE-CC6B-11F0-8082-B88A606D4B19}#0000000002116800", "WPD", false)]
+    [InlineData(@"SWD\MMDEVAPI\{0.0.0.00000000}.{A1E549CD}", "AudioEndpoint", false)]
+    [InlineData(@"SW\{96E080C7-143C-11D1-B40F-00A0C9223196}\{3C0D501A}", "MEDIA", false)]
+    public void Suggests_unplugged_hardware_not_by_products(string id, string cls, bool suggested) =>
+        Assert.Equal(suggested, Ghosts.Suggested(Ghost(id, cls)));
+
+    [Fact]
+    public void Connected_device_is_never_suggested() =>
+        Assert.False(Ghosts.Suggested(Ghost(@"USB\VID_1\1", "USB") with { IsPresent = true }));
+
+    [Theory]
+    [InlineData(0, 0, "All drivers are up to date.")]
+    [InlineData(0, 15, "15 driver updates available.")]
+    [InlineData(1, 0, "1 device needs a driver.")]
+    [InlineData(2, 1, "2 devices need a driver, and 1 update is available.")]
+    public void Summary_text(int missing, int updates, string text) =>
+        Assert.Equal(text, new ScanSummary(DateTime.Now, missing, updates, []).Text);
 }

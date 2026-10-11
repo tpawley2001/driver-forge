@@ -1,0 +1,62 @@
+<UserControl x:Class="DriverForge.Views.CleanupView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             x:Name="Root">
+    <DockPanel Margin="32,24,32,0">
+        <StackPanel DockPanel.Dock="Top">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Style="{StaticResource GhostButton}" Content="Refresh" Command="{Binding RefreshCommand}" Margin="0,0,8,0" />
+                    <Button Style="{StaticResource GhostButton}" Content="Select suggested" Command="{Binding SelectSuggestedCommand}" Margin="0,0,8,0" />
+                    <Button Style="{StaticResource GhostButton}" Content="Select none" Command="{Binding SelectNoneCommand}" Margin="0,0,8,0" />
+                    <Button Style="{StaticResource PrimaryButton}" Content="Remove selected" Command="{Binding RemoveSelectedCommand}"
+                            IsEnabled="{Binding IsBusy, Converter={StaticResource InvBool}}" />
+                </StackPanel>
+                <TextBlock Text="Cleanup" FontSize="28" FontWeight="SemiBold" Foreground="White" />
+            </DockPanel>
+            <TextBlock Text="Devices Windows remembers that aren't connected. Removing one only clears its entry; it comes back when plugged in again. Suggested: hardware that was unplugged, not the volumes and software devices other devices create."
+                       Style="{StaticResource Secondary}" FontSize="14" TextWrapping="Wrap" Margin="0,4,0,8" />
+            <TextBlock Text="{Binding Summary}" Foreground="White" Margin="0,0,0,8" />
+            <Border Style="{StaticResource PanelCard}" Margin="0,0,0,12" Visibility="{Binding Status, Converter={StaticResource NullToVis}}">
+                <DockPanel>
+                    <ui:ProgressRing DockPanel.Dock="Left" IsIndeterminate="True" Width="18" Height="18" Margin="0,0,12,0"
+                                     Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
+                    <TextBlock Text="{Binding Status}" Foreground="White" TextWrapping="Wrap" VerticalAlignment="Center" />
+                </DockPanel>
+            </Border>
+        </StackPanel>
+        <ListBox ItemsSource="{Binding Rows}" Background="Transparent" BorderThickness="0" Margin="0,0,0,24"
+                 VirtualizingPanel.IsVirtualizing="True" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListBox.ItemContainerStyle>
+                <Style TargetType="ListBoxItem">
+                    <Setter Property="Padding" Value="0" />
+                    <Setter Property="Margin" Value="0,0,0,6" />
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="ListBoxItem"><ContentPresenter /></ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </ListBox.ItemContainerStyle>
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <Border Style="{StaticResource PanelCard}">
+                        <DockPanel>
+                            <CheckBox DockPanel.Dock="Left" IsChecked="{Binding IsChecked}" VerticalAlignment="Center" Margin="0,0,12,0"
+                                      AutomationProperties.Name="{Binding Name}" />
+                            <TextBlock DockPanel.Dock="Right" Text="{Binding LastSeen}" Style="{StaticResource Secondary}" VerticalAlignment="Center" Margin="12,0,0,0" />
+                            <StackPanel>
+                                <TextBlock Foreground="White" FontWeight="SemiBold" TextTrimming="CharacterEllipsis">
+                                    <Run Text="{Binding Name, Mode=OneWay}" /><Run Text="  ·  " Foreground="{StaticResource TextTertiary}" /><Run Text="{Binding Class, Mode=OneWay}" Foreground="{StaticResource TextSecondary}" FontWeight="Normal" />
+                                </TextBlock>
+                                <TextBlock Text="{Binding InstanceId}" Style="{StaticResource MonoSmall}" TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+    </DockPanel>
+</UserControl>

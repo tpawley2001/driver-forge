@@ -14,6 +14,7 @@ public sealed class AppSettings
     public bool UseCatalog { get; set; } = true;
     /// <summary>Folders of driver packages to offer drivers from (SPEC §4.3).</summary>
     public List<string> DriverFolders { get; set; } = [];
+    public ScanSchedule ScanSchedule { get; set; } = ScanSchedule.Off;
 
     static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
 

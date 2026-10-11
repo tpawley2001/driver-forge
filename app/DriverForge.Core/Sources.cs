@@ -61,7 +61,7 @@ public sealed class DriverStoreSource : IDriverSource
     {
         if (n.IsInstalled) return null;
         if (d.Installed is { } i && string.Equals(Path.GetFileName(n.Inf), i.Inf, StringComparison.OrdinalIgnoreCase)
-            && string.Equals(n.Section, i.InfSection, StringComparison.OrdinalIgnoreCase)) return null;
+            && WindowsEngine.SameSection(n.Section, i.InfSection)) return null;
         var match = IdMatch.Best(d, n.InfHardwareId, n.InfCompatibleIds);
         return new DriverOffer(
             Id: $"store|{n.Inf}|{n.Section}|{n.InfHardwareId}",

@@ -415,22 +415,34 @@ has the chosen driver for the device. WU offers stop after the download.
 ### 8.1 Uninstall a driver
 
 `pnputil /delete-driver oemNN.inf /uninstall` (removes it from the devices
-and the driver store). Refuse for inbox drivers. Back up first.
+and the driver store). Refuse for inbox drivers. Back up first. Exit code
+3010 (`ERROR_SUCCESS_REBOOT_REQUIRED`) is success with a restart pending.
+The history entry ("Uninstall") rolls back like any other: the backup is
+reinstalled.
+
+Section names: a driver node names its models install section (`ICCWDT`),
+while `DEVPKEY_Device_DriverInfSection` names the decorated section Windows
+ran (`ICCWDT.NT`). Compare them without the platform suffix.
 
 ### 8.2 Ghost devices
 
 Non-present devices (enumerated without `DIGCF_PRESENT`, where
 `CM_Get_DevNode_Status` returns `CR_NO_SUCH_DEVINST`) are listed with their
 last-seen time (`DEVPKEY_Device_LastArrivalDate` / `LastRemovalDate`).
-Removing one: `DiUninstallDevice`. Never offered in bulk by default for
-classes that are present-only by nature (software devices, volume
-snapshots); show them, don't pre-select them.
+Removing one: `DiUninstallDevice` (refused for a connected device). Never
+offered in bulk by default for classes that are present-only by nature
+(volumes, software devices, audio endpoints, portable-device entries, `SWD\`
+and `SW\` devices); show them, don't pre-select them. The Cleanup page has
+"Select suggested" for the rest.
 
 ## 9. Scheduling and settings
 
-- Scheduled scan: a Task Scheduler task (`schtasks` or the COM API) that runs
-  `DriverForge.exe --scan-only` and shows a toast when something needs
-  attention. A tray icon is optional.
+- Scheduled scan: a Task Scheduler task `Driver Forge\Scan` (`schtasks`,
+  daily or weekly on Sundays at 12:00, highest run level, interactive only)
+  that runs `DriverForge.exe --scan-only`: no window, `last-scan.json` with
+  what it found, and a notification-area balloon (`Shell_NotifyIconW`, which
+  Windows shows as a notification) when something needs attention; clicking
+  it opens the app. `--schedule Off|Daily|Weekly` sets it without the UI.
 - Settings, ignore list: `settings.json` (exists, `AppSettings.cs`).
 - Data folder: beside the exe for the portable copy, `%ProgramData%\Driver Forge`
   when installed (marker file `installed.txt`, exists).
@@ -447,7 +459,7 @@ snapshots); show them, don't pre-select them.
 | 4 | Install + backup + history (§6, §7) | Install, verify, roll back one device on the test box. **Done 2026-10-10**: on the test box the ISA bridge went machine.inf → oem31.inf (driver store offer), rolled back to machine.inf (oem31 exported first), then back to oem31 from the backup; each verified with PnP properties |
 | 5 | Catalog source (§4.2) | A device WU has nothing for gets a Catalog offer, installed from the cab. **Done 2026-10-11**: Intel Watchdog Timer on the test box, 11.7.0.1002 → 11.7.0.1019 from the Catalog cab (oem19 backed up), verified |
 | 6 | Local folders + INF parser (§4.3) | INF fixture tests pass; a folder of OEM drivers produces offers. **Done 2026-10-11**: parser and decoration tests pass; on the test box a folder of 81 INFs (folders, a .cab, a .zip) produced the same 25 Windows-confirmed offers as the Catalog source for the same packages |
-| 7 | Cleanup, scheduling (§8, §9) | |
+| 7 | Cleanup, scheduling (§8, §9) | Uninstall a driver and roll it back; list and remove a ghost; a scheduled scan notifies. **Done 2026-10-11** on the test box: Watchdog oem33 uninstalled (backed up, device fell back to oem19) and rolled back; a ghost USB capture device removed; the scheduled task ran and Windows logged its notification |
 
 Testing rule: driver installs only on the **test box**, never on a daily-use PC.
 

@@ -243,6 +243,26 @@ public sealed partial class DriversViewModel : ObservableObject
     }
 
     [RelayCommand]
+    Task Uninstall(DeviceRowViewModel row) => UninstallAsync(row, askFirst: true);
+
+    /// <summary>Removes the device's third-party driver (backed up first, so it can be rolled back).</summary>
+    public async Task UninstallAsync(DeviceRowViewModel row, bool askFirst)
+    {
+        if (IsBusy || row.Device.Installed is not { } d) return;
+        if (askFirst && !main.Confirm($"Remove {d.Description} ({d.Inf}) from Windows? It's backed up first, and History can put it back. The device switches to the next-best driver Windows has, or to none."))
+            return;
+        IsBusy = true;
+        BusyText = $"Uninstalling {d.Description}…";
+        try
+        {
+            var r = await main.Engine.UninstallDriverAsync(row.Device, new InstallOptions(main.Settings.TestMode));
+            Error = r.Ok ? null : r.Message;
+        }
+        finally { IsBusy = false; }
+        await ScanAsync();
+    }
+
+    [RelayCommand]
     static void CopyHardwareId(DeviceRowViewModel row) => Clipboard.SetText(row.HardwareId);
 
     [RelayCommand]

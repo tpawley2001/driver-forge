@@ -286,6 +286,10 @@
                                     Command="{Binding DataContext.SearchOnlineCommand, ElementName=Root}" CommandParameter="{Binding}" />
                             <Button Style="{StaticResource GhostButton}" Content="Ignore this device" Margin="0,0,8,8"
                                     Command="{Binding DataContext.IgnoreCommand, ElementName=Root}" CommandParameter="{Binding}" />
+                            <Button Style="{StaticResource GhostButton}" Content="Uninstall driver" Margin="0,0,8,8"
+                                    Command="{Binding DataContext.UninstallCommand, ElementName=Root}" CommandParameter="{Binding}"
+                                    Visibility="{Binding CanUninstall, Converter={StaticResource BoolToVis}}"
+                                    AutomationProperties.Name="Uninstall this device's driver" />
                         </WrapPanel>
                     </StackPanel>
                 </Border>

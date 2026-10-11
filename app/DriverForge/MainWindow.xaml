@@ -18,6 +18,7 @@
         <DataTemplate DataType="{x:Type vm:SettingsViewModel}"><views:SettingsView /></DataTemplate>
         <DataTemplate DataType="{x:Type vm:HistoryViewModel}"><views:HistoryView /></DataTemplate>
         <DataTemplate DataType="{x:Type vm:SourcesViewModel}"><views:SourcesView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:CleanupViewModel}"><views:CleanupView /></DataTemplate>
         <DataTemplate DataType="{x:Type vm:ComingSoonViewModel}"><views:ComingSoonView /></DataTemplate>
 
         <DataTemplate x:Key="NavButton" DataType="{x:Type vm:NavItem}">

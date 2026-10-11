@@ -17,6 +17,34 @@ public partial class App : Application
         string data = DataDirectory();
         IDriverEngine engine = e.Args.Contains("--demo") ? new DemoEngine() : new WindowsEngine(data);
 
+        // --schedule Off|Daily|Weekly: set the scheduled scan without opening the app (installer, tests).
+        if (Arg(e.Args, "--schedule") is { } schedule)
+        {
+            int code = 0;
+            try
+            {
+                var s = Enum.Parse<ScanSchedule>(schedule, ignoreCase: true);
+                ScheduledScan.Apply(s, Environment.ProcessPath!);
+                var settings = AppSettings.Load(Path.Combine(data, "settings.json"));
+                settings.ScanSchedule = s;
+                settings.Save(Path.Combine(data, "settings.json"));
+            }
+            catch (Exception ex) when (ex is EngineException or ArgumentException)
+            {
+                File.WriteAllText(Path.Combine(data, "schedule.error.txt"), ex.Message);
+                code = 1;
+            }
+            Shutdown(code);
+            return;
+        }
+
+        // Scheduled scan (SPEC §9): no window; a notification when something needs attention.
+        if (e.Args.Contains("--scan-only"))
+        {
+            ScanOnly(engine, data);
+            return;
+        }
+
         // Headless: write the scan as JSON and exit. Used to check the scan
         // against Windows' own device list on the test box (build/check-scan.sh).
         if (Arg(e.Args, "--scan-json") is { } json)
@@ -71,6 +99,30 @@ public partial class App : Application
             : root;
     }
 
+    void ScanOnly(IDriverEngine engine, string data)
+    {
+        try
+        {
+            var settings = AppSettings.Load(Path.Combine(data, "settings.json"));
+            var report = Task.Run(() => engine.ScanAsync(null)).GetAwaiter().GetResult();
+            var summary = ScanSummary.From(report, settings.IgnoredDevices);
+            summary.Save(Path.Combine(data, "last-scan.json"));
+            if (summary.Total > 0) Notify(summary);
+        }
+        catch (Exception ex) when (ex is EngineException or IOException or UnauthorizedAccessException)
+        {
+            File.WriteAllText(Path.Combine(data, "last-scan.error.txt"), ex.ToString());
+        }
+        Shutdown(0);
+    }
+
+    /// <summary>A notification-area balloon (shown as a Windows notification); clicking it opens the app.</summary>
+    static void Notify(ScanSummary summary)
+    {
+        bool clicked = TrayBalloon.Show("Driver Forge", summary.Text + " Click to review.", TimeSpan.FromSeconds(15));
+        if (clicked) System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = true });
+    }
+
     static string? Arg(string[] args, string name)
     {
         int i = Array.IndexOf(args, name);
@@ -98,6 +150,19 @@ public partial class App : Application
             {
                 await main.History.RollBackAsync(entry, askFirst: false);
                 page ??= "History";
+            }
+            // --uninstall <device>: remove that device's third-party driver (real unless test mode is on).
+            if (Arg(Environment.GetCommandLineArgs(), "--uninstall") is { } uninstall)
+            {
+                main.Drivers.SelectByName(uninstall);
+                if (main.Drivers.Selected is { CanUninstall: true } u) await main.Drivers.UninstallAsync(u, askFirst: false);
+            }
+            // --remove-ghost <instance ID part>: remove matching ghost devices.
+            if (Arg(Environment.GetCommandLineArgs(), "--remove-ghost") is { } ghost)
+            {
+                await main.Cleanup.LoadAsync();
+                await main.Cleanup.RemoveAsync(main.Cleanup.Rows.Where(r => r.InstanceId.Contains(ghost, StringComparison.OrdinalIgnoreCase)).ToList(), askFirst: false);
+                page ??= "Cleanup";
             }
             if (page is not null) main.NavigateTo(page);
             await Task.Delay(800);

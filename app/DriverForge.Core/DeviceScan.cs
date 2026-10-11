@@ -75,6 +75,9 @@ public static class DeviceScanner
                 Str(DevKey.DriverInfSection) ?? "");
         }
 
+        var (problem, present) = Status(info.DevInst);
+        DateTime? When(DevKey k) => Property(set, info, k) is { Type: Native.DEVPROP_TYPE_FILETIME, Data.Length: 8 } f && BitConverter.ToInt64(f.Data) > 0
+            ? DateTime.FromFileTimeUtc(BitConverter.ToInt64(f.Data)).ToLocalTime() : null;
         return new Device(
             id,
             Str(DevKey.Name) ?? desc,
@@ -83,17 +86,29 @@ public static class DeviceScanner
             cls,
             List(DevKey.HardwareIds),
             List(DevKey.CompatibleIds),
-            ProblemCode(info.DevInst),
+            problem,
             installed,
-            classGuid);
+            classGuid,
+            present,
+            present ? null : When(DevKey.LastArrivalDate),
+            present ? null : When(DevKey.LastRemovalDate));
     }
 
-    /// <summary>The CM_PROB_* code, or 0 when the device has no problem.</summary>
-    static int ProblemCode(uint devInst)
+    /// <summary>
+    /// The CM_PROB_* code (0 when none) and whether the device is present: a
+    /// ghost has no devnode, CM_Get_DevNode_Status says CR_NO_SUCH_DEVINST (SPEC §8.2).
+    /// </summary>
+    static (int Problem, bool Present) Status(uint devInst)
     {
-        if (Native.CM_Get_DevNode_Status(out uint status, out uint problem, devInst, 0) != Native.CR_SUCCESS) return 0;
-        return (status & Native.DN_HAS_PROBLEM) != 0 ? (int)problem : 0;
+        uint cr = Native.CM_Get_DevNode_Status(out uint status, out uint problem, devInst, 0);
+        if (cr == Native.CR_NO_SUCH_DEVINST) return (0, false);
+        if (cr != Native.CR_SUCCESS) return (0, true);
+        return ((status & Native.DN_HAS_PROBLEM) != 0 ? (int)problem : 0, true);
     }
+
+    /// <summary>Devices Windows remembers but that aren't connected (SPEC §8.2).</summary>
+    public static IReadOnlyList<Device> Ghosts(CancellationToken ct = default) =>
+        Scan(presentOnly: false, ct).Where(d => !d.IsPresent).ToList();
 
     static string? InstanceId(nint set, Native.SP_DEVINFO_DATA info)
     {
@@ -195,6 +210,9 @@ internal readonly record struct DevKey(Guid Fmtid, uint Pid)
     public static readonly DevKey MatchingDeviceId = new(DriverFmt, 8);
     public static readonly DevKey DriverProvider = new(DriverFmt, 9);
     public static readonly DevKey DriverRank = new(DriverFmt, 14);
+    static readonly Guid InstallFmt = new("83da6326-97a6-4088-9453-a1923f573b29");
+    public static readonly DevKey LastArrivalDate = new(InstallFmt, 102);
+    public static readonly DevKey LastRemovalDate = new(InstallFmt, 103);
 
     public Native.DEVPROPKEY ToNative() => new() { fmtid = Fmtid, pid = Pid };
 }
@@ -205,7 +223,7 @@ internal static partial class Native
     public const int ERROR_INSUFFICIENT_BUFFER = 122, ERROR_NO_MORE_ITEMS = 259;
     public const uint DEVPROP_TYPE_UINT32 = 0x7, DEVPROP_TYPE_GUID = 0xD, DEVPROP_TYPE_FILETIME = 0x10,
         DEVPROP_TYPE_STRING = 0x12, DEVPROP_TYPE_STRING_LIST = 0x2012;
-    public const uint CR_SUCCESS = 0, DN_HAS_PROBLEM = 0x400;
+    public const uint CR_SUCCESS = 0, CR_NO_SUCH_DEVINST = 0x0D, DN_HAS_PROBLEM = 0x400;
 
     [StructLayout(LayoutKind.Sequential)]
     public struct SP_DEVINFO_DATA

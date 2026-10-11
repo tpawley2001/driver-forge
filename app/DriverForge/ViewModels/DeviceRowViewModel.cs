@@ -70,6 +70,8 @@ public sealed partial class DeviceRowViewModel : ObservableObject
     }
 
     public bool CanInstall => Chosen is not null;
+    /// <summary>A third-party driver can be removed (SPEC §8.1); Windows' own can't.</summary>
+    public bool CanUninstall => Device.Installed is { } d && DriverBackup.IsThirdParty(d.Inf);
 
     public string Name => Device.DisplayName;
     public string HardwareId => Device.PrimaryHardwareId;

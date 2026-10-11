@@ -68,6 +68,22 @@
                 </StackPanel>
             </Border>
 
+ <Border Style="{StaticResource PanelCard}" Margin="0,0,0,12">
+                <StackPanel>
+                    <DockPanel>
+                        <ComboBox DockPanel.Dock="Right" Width="140" ItemsSource="{Binding Schedules}" SelectedItem="{Binding ScanSchedule}"
+                                  VerticalAlignment="Center" AutomationProperties.Name="Scan automatically" />
+                        <StackPanel>
+                            <TextBlock Text="Scan automatically" FontWeight="SemiBold" Foreground="White" />
+                            <TextBlock Text="At noon (weekly: Sundays) while you're signed in. A notification appears only when a driver is missing or an update is available; nothing is installed without you."
+                                       Style="{StaticResource Secondary}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </DockPanel>
+                    <TextBlock Text="{Binding ScheduleError}" Foreground="{StaticResource MissingFg}" TextWrapping="Wrap" Margin="0,6,0,0"
+                               Visibility="{Binding ScheduleError, Converter={StaticResource NullToVis}}" />
+                </StackPanel>
+            </Border>
+
             <Border Style="{StaticResource PanelCard}">
                 <StackPanel>
                     <TextBlock Text="Data folder" FontWeight="SemiBold" Foreground="White" />
