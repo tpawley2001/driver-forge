@@ -10,7 +10,7 @@
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <AssemblyName>DriverForge</AssemblyName>
     <RootNamespace>DriverForge</RootNamespace>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <Product>Driver Forge</Product>
     <Authors>Hillyard Tech</Authors>
     <Company>Hillyard Tech</Company>
