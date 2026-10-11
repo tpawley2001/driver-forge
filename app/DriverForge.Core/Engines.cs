@@ -9,7 +9,7 @@ public sealed class WindowsEngine(string dataDirectory) : IDriverEngine
     public string Name => "Windows engine";
     public string DataDirectory { get; } = dataDirectory;
 
-    public IReadOnlyList<IDriverSource> Sources { get; } = [new DriverStoreSource()];
+    public IReadOnlyList<IDriverSource> Sources { get; } = [new WindowsUpdateSource(), new DriverStoreSource()];
 
     public async Task<ScanResult> ScanAsync(IProgress<string>? progress, CancellationToken ct = default)
     {
@@ -41,8 +41,13 @@ public sealed class WindowsEngine(string dataDirectory) : IDriverEngine
     }
 
     public Task<InstallResult> InstallAsync(Device device, DriverOffer offer, InstallOptions options,
-        IProgress<InstallStep>? progress, CancellationToken ct = default) =>
-        throw new EngineException("Installing isn't built yet (milestone 4 in docs/SPEC.md).");
+        IProgress<InstallStep>? progress, CancellationToken ct = default)
+    {
+        var source = Sources.FirstOrDefault(s => s.Name == offer.Source)
+            ?? throw new EngineException($"No source named {offer.Source}.");
+        if (source is IInstallingSource own) return own.InstallAsync(offer, options, progress, ct);
+        throw new EngineException("Installing from INF packages isn't built yet (milestone 4 in docs/SPEC.md).");
+    }
 }
 
 /// <summary>Made-up devices and offers for working on the UI. Installs are always simulated.</summary>

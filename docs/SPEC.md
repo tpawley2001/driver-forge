@@ -138,6 +138,11 @@ Windows Update Agent COM API (`Microsoft.Update.Session`):
    it validated. Result codes come from `IInstallationResult`
    (`ResultCode`, `RebootRequired`, `HResult`).
 4. WU offers are signed by Microsoft by definition (signature score best).
+   WUA doesn't report a driver's version or feature score: the version comes
+   from the title's last token when it is one (`"INTEL - System - … - 10.1.1.40"`),
+   else it's unknown; the feature score is the default.
+5. WU also offers drivers for devices that aren't present (seen before);
+   those match no scanned device and are dropped.
 
 Note from Microsoft's docs: since Windows 10 1709, WU offers the *best
 matching* driver, not necessarily the newest; it ranks critical/automatic
@@ -276,7 +281,7 @@ driver's real rank (`DEVPKEY_Device_DriverRank`), date and version:
   not older than the installed one. The date guard exists because a closer ID
   match can rank an old driver above a newer installed one; Driver Forge
   never offers a downgrade as an update.
-- **Skipped**: the device is ignored, is vendor-managed (5.4), or its best
+- **Skipped**: the device is ignored, is vendor-managed (5.5) or firmware (5.4), or its best
   offer ranks at least as well as the installed driver but is older (the
   reason says so). A worse-ranked older offer, such as an inbox generic
   driver in the driver store, is no news: the device is up to date.
@@ -287,7 +292,13 @@ Every offer stays visible in the device's detail pane, and the user may pick
 any of them by hand (including an older one: that's how a rollback to a
 specific version works).
 
-### 5.4 Vendor-managed devices
+### 5.4 Firmware
+
+Devices of class `Firmware` (UEFI system and device firmware, offered by WU
+as "drivers") are Skipped whenever an offer exists: installing one flashes
+firmware. The user can still pick it by hand.
+
+### 5.5 Vendor-managed devices
 
 Display adapters from vendors whose own app keeps them current are Skipped
 unless the user picks a driver by hand: `PCI\VEN_10DE` (NVIDIA App),
@@ -375,7 +386,7 @@ snapshots); show them, don't pre-select them.
 |---|---|---|
 | 1 | Device scan (§3) | Device list on the test box matches Device Manager, IDs in order, installed-driver fields filled. **Done 2026-10-10**: `build/check-scan.sh` matches WMI's PnP view on the test box exactly (155 devices) |
 | 2 | Ranking (§5) | `DriverRank`/`DriverComparer`/`Recommender` tests pass; real SetupAPI rank read for staged drivers (§4.4). **Done 2026-10-10**: `DriverNodes` reads Windows' rank; the computed identifier score equals Windows' on every staged node (live test) |
-| 3 | Windows Update source (§4.1) | Optional driver updates listed and one installed on the test box |
+| 3 | Windows Update source (§4.1) | Optional driver updates listed and one installed on the test box. **Done 2026-10-10**: Intel thermal subsystem (problem 28) installed from WU on the test box, now oem32.inf 10.1.1.12, no problem |
 | 4 | Install + backup + history (§6, §7) | Install, verify, roll back one device on the test box |
 | 5 | Catalog source (§4.2) | A device WU has nothing for gets a Catalog offer, installed from the cab |
 | 6 | Local folders + INF parser (§4.3) | INF fixture tests pass; a folder of OEM drivers produces offers |

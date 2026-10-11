@@ -13,7 +13,7 @@ public sealed partial class InstallItemViewModel(DeviceRowViewModel row) : Obser
     public DeviceRowViewModel Row { get; } = row;
     public DriverOffer Offer { get; } = row.Chosen!.Offer;
     public string Name => Row.Name;
-    public string Target => $"{Offer.Version} · {Offer.Source}";
+    public string Target => Offer.Version.IsKnown ? $"{Offer.Version} · {Offer.Source}" : Offer.Source;
 
     [ObservableProperty] private ItemStatus status = ItemStatus.Waiting;
     [ObservableProperty] private string detail = "Waiting";

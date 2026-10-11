@@ -54,6 +54,11 @@ public static class Recommender
         if (best is null)
             return new(device, DeviceState.UpToDate, null, ranked, null);
 
+        // A firmware "driver" flashes the BIOS/UEFI or a device's firmware:
+        // never recommended, only installed when picked by hand.
+        if (string.Equals(device.Class, "Firmware", StringComparison.OrdinalIgnoreCase))
+            return new(device, DeviceState.Skipped, null, ranked, "Firmware updates flash the PC's firmware, so they're only installed if you pick one by hand.");
+
         var installed = device.Installed!;
         // Without the installed rank, assume it matched as well as the offer.
         uint installedRank = installed.Rank ?? best.Rank;

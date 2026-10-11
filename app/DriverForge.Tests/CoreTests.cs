@@ -143,6 +143,18 @@ public class RecommenderTests
     }
 
     [Fact]
+    public void Firmware_is_never_recommended()
+    {
+        var installed = new InstalledDriver("Firmware Resource", "Microsoft", DriverVersion.Parse("10.0.19041.1"), new(2006, 6, 21), "c_firmware.inf", "UEFI\\RES_X", 0x00FF3000);
+        var d = new Device("UEFI\\RES_X\\0", "System Firmware", "System Firmware", "", "Firmware", ["UEFI\\RES_X"], [], 0, installed);
+        var bios = new DriverOffer("wu|f", "Windows Update", "HP System Firmware", "HP", DriverVersion.Parse("2.58"), new(2022, 7, 29), "UEFI\\RES_X", MatchKind.HardwareId, 0x00FF0000, true, false);
+        var a = Recommender.Assess(d, [bios]);
+        Assert.Equal(DeviceState.Skipped, a.State);
+        Assert.False(a.IsActionable);
+        Assert.Single(a.Offers);
+    }
+
+    [Fact]
     public void Worse_ranked_older_generic_driver_is_up_to_date()
     {
         var installed = new InstalledDriver("Vendor", "Intel", DriverVersion.Parse("10.1.1.45"), new(2020, 9, 9), "oem3.inf", "PCI\\VEN_8086&DEV_A145", 0x00FF0001);
@@ -255,4 +267,34 @@ public class LiveRankTests(ITestOutputHelper output)
     [Fact]
     public void Driver_version_dwordlong_unpacks_most_significant_first() =>
         Assert.Equal("10.0.19041.1", DriverNodes.Version(0x000A_0000_4A61_0001).ToString());
+}
+
+public class WindowsUpdateTests
+{
+    [Theory]
+    [InlineData("Intel - System - 10.1.1.45", "10.1.1.45")]
+    [InlineData("Realtek Semiconductor Corp. - Extension - 10.0.19041.1 ", "10.0.19041.1")]
+    [InlineData("INTEL - Bluetooth - 22.150.0.6", "22.150.0.6")]
+    [InlineData("Some driver without a version", "")]
+    public void Version_comes_from_the_title(string title, string version) =>
+        Assert.Equal(version, WindowsUpdateSource.VersionFromTitle(title).ToString());
+
+    static readonly Device Dev = new("PCI\\VEN_8086&DEV_A146&SUBSYS_8055103C&REV_31\\3&1", "LPC", "LPC", "", "System",
+        ["PCI\\VEN_8086&DEV_A146&SUBSYS_8055103C&REV_31", "PCI\\VEN_8086&DEV_A146&SUBSYS_8055103C", "PCI\\VEN_8086&DEV_A146&REV_31", "PCI\\VEN_8086&DEV_A146"],
+        ["PCI\\CC_060100", "PCI\\CC_0601"], 0, null);
+
+    [Fact]
+    public void Offer_matches_by_hardware_id_with_a_trusted_rank()
+    {
+        var u = new WindowsUpdateSource.WuDriver("abc", "Intel - System - 10.1.1.45", "pci\\ven_8086&dev_a146", new(2020, 9, 9), "System", "Intel", "INTEL", "Intel LPC - A146", 1234);
+        var o = WindowsUpdateSource.ToOffer(Dev, u)!;
+        Assert.Equal("wu|abc", o.Id);
+        Assert.Equal(0x00FF0003u, o.Rank);
+        Assert.Equal(MatchKind.HardwareId, o.Match);
+        Assert.Equal("10.1.1.45", o.Version.ToString());
+    }
+
+    [Fact]
+    public void Update_for_another_device_is_no_offer() =>
+        Assert.Null(WindowsUpdateSource.ToOffer(Dev, new("x", "t", "PCI\\VEN_10EC&DEV_8168", null, "", "", "", "", 0)));
 }
