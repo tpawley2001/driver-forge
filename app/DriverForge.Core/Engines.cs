@@ -141,6 +141,9 @@ public sealed class WindowsEngine(string dataDirectory) : IDriverEngine
     public Task RemoveGhostAsync(Device ghost, CancellationToken ct = default) =>
         Task.Run(() => Core.Ghosts.Remove(ghost.InstanceId), ct);
 
+    public Task<IReadOnlyList<InfoSection>> SystemInfoAsync(CancellationToken ct = default) =>
+        Task.Run(() => SystemInfo.Read(ct), ct);
+
     /// <summary>Back up, stage, install one node on one device, verify (SPEC §6.1 steps 2–4).</summary>
     Task<InstallResult> InstallPackageAsync(Device device, string inf, Func<DriverNode, bool> pick, string source, DriverRef target,
         InstallOptions options, IProgress<InstallStep>? progress, CancellationToken ct) =>
@@ -323,6 +326,20 @@ public sealed class DemoEngine : IDriverEngine
 
     public Task RemoveGhostAsync(Device ghost, CancellationToken ct = default) => Task.Delay(200, ct);
 
+    public Task<IReadOnlyList<InfoSection>> SystemInfoAsync(CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<InfoSection>>(
+        [
+            new("Computer", [new("Model", "Dell OptiPlex 7050"), new("Motherboard", "Dell 0NW6H5 rev A00")]),
+            new("Firmware", [new("BIOS", "Dell 1.26.0 (5/10/2023)"), new("Mode", "UEFI, Secure Boot on")]),
+            new("Windows", [new("Edition", "Windows 11 Pro 24H2 · 64-bit"), new("Build", "26100.4061"),
+                new("Installed", "1/14/2025"), new("Last restart", "10/11/2026 8:02 AM")]),
+            new("Processor and memory", [new("Processor", "Intel(R) Core(TM) i7-7700 CPU @ 3.60GHz · 4 cores, 8 threads"),
+                new("Memory", "16 GB · 2 of 4 slots used · DDR4 · 2400 MT/s")]),
+            new("Graphics", [new("Adapter", "NVIDIA GeForce RTX 3060 Ti · 8 GB · driver 32.0.15.6094 · 2560×1440 at 144 Hz")]),
+            new("Disks", [new("Disk", "Samsung SSD 970 EVO Plus 1TB · 932 GB · NVMe SSD · healthy"),
+                new("Disk", "WDC WD20EZRZ-00Z5HB0 · 1.8 TB · SATA HDD · healthy")]),
+        ]);
+
     public IReadOnlyList<HistoryEntry> History() => Enumerable.Reverse(history).ToList();
 
     public async Task<InstallResult> RollbackAsync(HistoryEntry entry, InstallOptions options,
@@ -339,6 +356,8 @@ public sealed class DemoEngine : IDriverEngine
         var hwids = new List<string> { hw };
         int amp = hw.LastIndexOf('&');
         if (amp > 0) hwids.Add(hw[..amp]);
+        // Made-up install times: a few weeks after each driver's date.
+        if (installed?.Date is { } d) installed = installed with { InstalledAt = d.ToDateTime(new TimeOnly(14, 30)).AddDays(40) };
         return new(id, name, name, "", cls, hwids, [], problem, installed);
     }
 

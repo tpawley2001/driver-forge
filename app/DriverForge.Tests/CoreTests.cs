@@ -652,3 +652,63 @@ public class CleanupTests
     public void Summary_text(int missing, int updates, string text) =>
         Assert.Equal(text, new ScanSummary(DateTime.Now, missing, updates, []).Text);
 }
+
+public class SystemInfoTests
+{
+    [Theory]
+    [InlineData(0L, "Not available")]
+    [InlineData(512L, "512 bytes")]
+    [InlineData(17_179_869_184L, "16 GB")]                // a "16 GB" stick
+    [InlineData(1_000_204_886_016L, "932 GB")]            // a "1 TB" disk
+    [InlineData(2_000_398_934_016L, "1.8 TB")]
+    public void Sizes_in_binary_units(long bytes, string text) => Assert.Equal(text, SystemInfo.Bytes(bytes));
+
+    [Theory]
+    [InlineData("Dell Inc.", "Dell")]
+    [InlineData("ASUSTeK COMPUTER INC.", "ASUSTeK")]
+    [InlineData("Micro-Star International Co., Ltd.", "Micro-Star International")]
+    [InlineData("LENOVO", "Lenovo")]
+    [InlineData("HP", "HP")]
+    public void Maker_names_lose_company_suffixes(string raw, string text) => Assert.Equal(text, SystemInfo.Tidy(raw));
+
+    [Theory]
+    [InlineData("LENOVO", "20XWCTO1WW", "ThinkPad X1 Carbon Gen 9", "ThinkPad X1 Carbon Gen 9 (20XWCTO1WW)")]
+    [InlineData("Dell Inc.", "OptiPlex 7050", "", "OptiPlex 7050")]
+    [InlineData("System manufacturer", "System Product Name", "System Version", "System Product Name")]   // unfilled firmware
+    [InlineData("HP", "HP EliteBook 840 G8 Notebook PC", "SBKPF", "HP EliteBook 840 G8 Notebook PC")]     // version is a code, not a name
+    public void Model_prefers_the_marketing_name(string maker, string model, string version, string text) =>
+        Assert.Equal(text, SystemInfo.ModelName(maker, model, version));
+
+    [Theory]
+    [InlineData("HP", "HP EliteDesk 800 G2 DM 35W", "HP EliteDesk 800 G2 DM 35W")]
+    [InlineData("Dell", "OptiPlex 7050", "Dell OptiPlex 7050")]
+    public void Maker_named_once(string maker, string model, string text) => Assert.Equal(text, SystemInfo.WithMaker(maker, model));
+
+    [Theory]
+    [InlineData("A00", "rev A00")]
+    [InlineData("KBC Version 05.39", "(KBC Version 05.39)")]
+    [InlineData("Default string", "")]
+    [InlineData("", "")]
+    public void Board_version(string raw, string text) => Assert.Equal(text, SystemInfo.Version(raw));
+
+    [Theory]
+    [InlineData(4, 17, "NVMe SSD")]
+    [InlineData(4, 11, "SATA SSD")]
+    [InlineData(3, 11, "SATA HDD")]
+    [InlineData(0, 7, "USB")]
+    [InlineData(0, 0, "")]
+    public void Disk_kind(int media, int bus, string text) => Assert.Equal(text, SystemInfo.DiskKind(media, bus));
+
+    [Fact]
+    public void Memory_types() => Assert.Equal(["DDR4", "DDR5", "LPDDR5", ""], new[] { 26, 34, 35, 2 }.Select(SystemInfo.MemoryType));
+
+    [Fact]
+    public void Battery_share_rounds() => Assert.Equal(88, SystemInfo.BatteryShare(49_950, 57_000));
+
+    [Fact]
+    public void Text_copy_lists_every_row()
+    {
+        var text = SystemInfo.ToText([new("Computer", [new("Model", "OptiPlex"), new("Motherboard", "0NW6H5")])]);
+        Assert.Equal($"Computer{Environment.NewLine}  Model: OptiPlex{Environment.NewLine}  Motherboard: 0NW6H5{Environment.NewLine}", text);
+    }
+}

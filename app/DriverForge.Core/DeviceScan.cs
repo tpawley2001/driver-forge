@@ -56,6 +56,9 @@ public static class DeviceScanner
         string cls = Str(DevKey.Class) ?? "";
         Guid classGuid = Property(set, info, DevKey.ClassGuid) is { Type: Native.DEVPROP_TYPE_GUID, Data.Length: 16 } g ? new Guid(g.Data) : info.ClassGuid;
 
+        DateTime? When(DevKey k) => Property(set, info, k) is { Type: Native.DEVPROP_TYPE_FILETIME, Data.Length: 8 } f && BitConverter.ToInt64(f.Data) > 0
+            ? DateTime.FromFileTimeUtc(BitConverter.ToInt64(f.Data)).ToLocalTime() : null;
+
         InstalledDriver? installed = null;
         string? inf = Str(DevKey.DriverInfPath);
         if (!string.IsNullOrEmpty(inf))
@@ -72,12 +75,11 @@ public static class DeviceScanner
                 inf,
                 Str(DevKey.MatchingDeviceId) ?? "",
                 rank,
-                Str(DevKey.DriverInfSection) ?? "");
+                Str(DevKey.DriverInfSection) ?? "",
+                When(DevKey.InstallDate));
         }
 
         var (problem, present) = Status(info.DevInst);
-        DateTime? When(DevKey k) => Property(set, info, k) is { Type: Native.DEVPROP_TYPE_FILETIME, Data.Length: 8 } f && BitConverter.ToInt64(f.Data) > 0
-            ? DateTime.FromFileTimeUtc(BitConverter.ToInt64(f.Data)).ToLocalTime() : null;
         return new Device(
             id,
             Str(DevKey.Name) ?? desc,
@@ -211,6 +213,7 @@ internal readonly record struct DevKey(Guid Fmtid, uint Pid)
     public static readonly DevKey DriverProvider = new(DriverFmt, 9);
     public static readonly DevKey DriverRank = new(DriverFmt, 14);
     static readonly Guid InstallFmt = new("83da6326-97a6-4088-9453-a1923f573b29");
+    public static readonly DevKey InstallDate = new(InstallFmt, 100);
     public static readonly DevKey LastArrivalDate = new(InstallFmt, 102);
     public static readonly DevKey LastRemovalDate = new(InstallFmt, 103);
 

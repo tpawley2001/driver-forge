@@ -165,6 +165,7 @@ public partial class App : Application
                 page ??= "Cleanup";
             }
             if (page is not null) main.NavigateTo(page);
+            if (main.CurrentPage is SystemInfoViewModel si) await si.LoadAsync();
             await Task.Delay(800);
             await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
 

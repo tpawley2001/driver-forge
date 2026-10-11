@@ -50,7 +50,8 @@ public sealed record InstalledDriver(
     string Inf,
     string MatchingId,
     uint? Rank,
-    string InfSection = "");
+    string InfSection = "",
+    DateTime? InstalledAt = null);
 
 public enum MatchKind { HardwareId, CompatibleId }
 
@@ -117,6 +118,8 @@ public interface IDriverEngine
     /// <summary>Devices Windows remembers that aren't connected (SPEC §8.2).</summary>
     Task<IReadOnlyList<Device>> GhostsAsync(CancellationToken ct = default);
     Task RemoveGhostAsync(Device ghost, CancellationToken ct = default);
+    /// <summary>What this PC is (SPEC §9.1).</summary>
+    Task<IReadOnlyList<InfoSection>> SystemInfoAsync(CancellationToken ct = default);
 }
 
 public sealed class EngineException(string message) : Exception(message);

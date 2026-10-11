@@ -30,6 +30,7 @@ public sealed partial class MainViewModel : ObservableObject
         History = new HistoryViewModel(this);
         Sources = new SourcesViewModel(this);
         Cleanup = new CleanupViewModel(this);
+        SystemInfo = new SystemInfoViewModel(this);
 
         driversNav = new("Drivers", SymbolRegular.DeveloperBoard24, Drivers);
         Nav =
@@ -38,8 +39,7 @@ public sealed partial class MainViewModel : ObservableObject
             new("Sources", SymbolRegular.CloudArrowDown24, Sources),
             new("History & rollback", SymbolRegular.History24, History),
             new("Cleanup", SymbolRegular.Broom24, Cleanup),
-            new("System info", SymbolRegular.Desktop24, new ComingSoonViewModel("System info",
-                "Motherboard, BIOS, disks and the date each driver was installed.")),
+            new("System info", SymbolRegular.Desktop24, SystemInfo),
         ];
         settingsNav = new("Settings", SymbolRegular.Settings24, SettingsPage);
         Navigate(driversNav);
@@ -53,6 +53,7 @@ public sealed partial class MainViewModel : ObservableObject
     public HistoryViewModel History { get; }
     public SourcesViewModel Sources { get; }
     public CleanupViewModel Cleanup { get; }
+    public SystemInfoViewModel SystemInfo { get; }
     public ObservableCollection<NavItem> Nav { get; }
 
     readonly NavItem driversNav;
@@ -91,6 +92,7 @@ public sealed partial class MainViewModel : ObservableObject
         CurrentPage = item.Page;
         if (item.Page is HistoryViewModel h) h.Refresh();
         if (item.Page is CleanupViewModel c) _ = c.LoadAsync();
+        if (item.Page is SystemInfoViewModel si) _ = si.LoadAsync();
     }
 
     public void ShowDrivers() => Navigate(driversNav);
@@ -106,5 +108,3 @@ public sealed partial class MainViewModel : ObservableObject
         finally { IsInstalling = false; }
     }
 }
-
-public sealed record ComingSoonViewModel(string Title, string Body);

@@ -447,6 +447,39 @@ and `SW\` devices); show them, don't pre-select them. The Cleanup page has
 - Data folder: beside the exe for the portable copy, `%ProgramData%\Driver Forge`
   when installed (marker file `installed.txt`, exists).
 
+### 9.1 System information
+
+A read-only page: what this PC is, for matching drivers by hand and for
+asking for help. Every value comes from a documented WMI class or Windows
+API; any one that fails reads "Not available" and never fails the page.
+
+- Computer: `Win32_ComputerSystem` (Manufacturer, Model, TotalPhysicalMemory)
+  and `Win32_ComputerSystemProduct.Version`, which some makers fill with the
+  model's marketing name.
+- Motherboard: `Win32_BaseBoard` (Manufacturer, Product, Version).
+- Firmware: `Win32_BIOS` (Manufacturer, SMBIOSBIOSVersion, ReleaseDate);
+  `GetFirmwareType` (BIOS or UEFI); Secure Boot from
+  `HKLM\SYSTEM\CurrentControlSet\Control\SecureBoot\State\UEFISecureBootEnabled`.
+- Windows: `Win32_OperatingSystem` (Caption, OSArchitecture, InstallDate,
+  LastBootUpTime), the release (`DisplayVersion`) and update revision (`UBR`)
+  under `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion`.
+- Processor: `Win32_Processor` (Name, NumberOfCores, NumberOfLogicalProcessors).
+- Memory: `Win32_PhysicalMemory` (Capacity, ConfiguredClockSpeed,
+  SMBIOSMemoryType) and `Win32_PhysicalMemoryArray.MemoryDevices` (slots).
+- Graphics: `Win32_VideoController` (Name, DriverVersion, current mode);
+  memory from the adapter's `HardwareInformation.qwMemorySize` value, because
+  `AdapterRAM` is 32-bit and stops at 4 GB.
+- Disks: `MSFT_PhysicalDisk` (`root\Microsoft\Windows\Storage`: FriendlyName,
+  Size, MediaType, BusType, HealthStatus), falling back to `Win32_DiskDrive`.
+- Battery (laptops): `BatteryStaticData.DesignedCapacity` and
+  `BatteryFullChargedCapacity.FullChargedCapacity` (`root\WMI`), shown as
+  the share of design capacity left.
+
+Driver install dates: `DEVPKEY_Device_InstallDate` (the last time Windows
+installed the device, which a driver change does), listed newest first,
+drivers that didn't come with Windows only by default. The page copies as
+plain text. No serial numbers: the text is meant to be pasted in public.
+
 ---
 
 ## 10. Milestones
@@ -481,3 +514,5 @@ All from Microsoft Learn (learn.microsoft.com), Windows driver docs:
 - *PnPUtil Command Syntax*
 - Windows Update Agent API: `IUpdateSearcher`, `IWindowsDriverUpdate`, `IUpdateDownloader`, `IUpdateInstaller`
 - System Restore WMI: `SystemRestore.CreateRestorePoint`
+- WMI classes: `Win32_ComputerSystem`, `Win32_ComputerSystemProduct`, `Win32_BaseBoard`, `Win32_BIOS`, `Win32_OperatingSystem`, `Win32_Processor`, `Win32_PhysicalMemory`, `Win32_PhysicalMemoryArray`, `Win32_VideoController`, `Win32_DiskDrive`; *MSFT_PhysicalDisk class* (Storage Management API); `BatteryStaticData`, `BatteryFullChargedCapacity` (WMI battery classes)
+- `GetFirmwareType`; *DEVPKEY_Device_InstallDate*; *Secure Boot* (registry state under `Control\SecureBoot\State`)
