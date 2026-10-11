@@ -1,16 +1,22 @@
 namespace DriverForge.Core;
 
 /// <summary>
-/// The real engine (SPEC §3–§7). Not built yet: milestone 1 is the device
-/// scan. Until then the app runs against <see cref="DemoEngine"/> with --demo.
+/// The real engine (SPEC §3–§7). Built so far: the device scan (milestone 1).
+/// No driver sources yet, so a scan lists devices without offers.
 /// </summary>
 public sealed class WindowsEngine(string dataDirectory) : IDriverEngine
 {
     public string Name => "Windows engine";
     public string DataDirectory { get; } = dataDirectory;
 
-    public Task<ScanResult> ScanAsync(IProgress<string>? progress, CancellationToken ct = default) =>
-        throw new EngineException("The device scan isn't built yet (milestone 1 in docs/SPEC.md). Start the app with --demo to see sample data.");
+    public Task<ScanResult> ScanAsync(IProgress<string>? progress, CancellationToken ct = default) => Task.Run(() =>
+    {
+        progress?.Report("Reading devices…");
+        var os = DeviceScanner.Os();
+        var devices = DeviceScanner.Scan(ct: ct);
+        return new ScanResult(DateTime.Now, os, devices, new Dictionary<string, IReadOnlyList<DriverOffer>>(),
+            ["No driver sources are built yet, so no updates are offered (Windows Update is milestone 3)."]);
+    }, ct);
 
     public Task<InstallResult> InstallAsync(Device device, DriverOffer offer, InstallOptions options,
         IProgress<InstallStep>? progress, CancellationToken ct = default) =>

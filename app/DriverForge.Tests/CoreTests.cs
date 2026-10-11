@@ -142,3 +142,68 @@ public class RecommenderTests
         Assert.Equal(DeviceState.UpToDate, Recommender.Assess(d, [offer]).State);
     }
 }
+
+public class PropertyDataTests
+{
+    static byte[] Utf16(string s) => System.Text.Encoding.Unicode.GetBytes(s);
+
+    [Fact]
+    public void String_stops_at_nul() => Assert.Equal("Realtek", PropertyData.String(Utf16("Realtek\0junk")));
+
+    [Fact]
+    public void String_list_keeps_windows_order()
+    {
+        var ids = PropertyData.StringList(Utf16("PCI\\VEN_8086&DEV_15B7&SUBSYS_06DE1028&REV_31\0PCI\\VEN_8086&DEV_15B7&SUBSYS_06DE1028\0PCI\\VEN_8086&DEV_15B7\0\0"));
+        Assert.Equal(["PCI\\VEN_8086&DEV_15B7&SUBSYS_06DE1028&REV_31", "PCI\\VEN_8086&DEV_15B7&SUBSYS_06DE1028", "PCI\\VEN_8086&DEV_15B7"], ids);
+    }
+
+    [Fact]
+    public void Empty_string_list_is_empty() => Assert.Empty(PropertyData.StringList(Utf16("\0")));
+
+    [Fact]
+    public void Odd_byte_count_is_tolerated() => Assert.Equal("A", PropertyData.String([0x41, 0, 0]));
+
+    [Fact]
+    public void Driver_date_is_the_utc_calendar_date() =>
+        Assert.Equal(new DateOnly(2006, 6, 21), PropertyData.FileTimeDate(new DateTime(2006, 6, 21, 0, 0, 0, DateTimeKind.Utc).ToFileTimeUtc()));
+
+    [Fact]
+    public void Zero_driver_date_is_unknown() => Assert.Null(PropertyData.FileTimeDate(0));
+}
+
+/// <summary>Reads the real PC the tests run on. Read-only.</summary>
+public class LiveScanTests
+{
+    [Fact]
+    public void Scan_finds_devices_with_ids()
+    {
+        var devices = DeviceScanner.Scan();
+        Assert.NotEmpty(devices);
+        Assert.All(devices, d => Assert.False(string.IsNullOrEmpty(d.InstanceId)));
+        Assert.Equal(devices.Count, devices.Select(d => d.InstanceId).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        // Every PC has PCI devices with hardware IDs and inbox drivers.
+        Assert.Contains(devices, d => d.InstanceId.StartsWith("PCI\\", StringComparison.OrdinalIgnoreCase) && d.HardwareIds.Count > 0);
+        Assert.Contains(devices, d => d.Installed is { Rank: not null, Date: not null } i && i.Version.IsKnown && i.Inf.EndsWith(".inf", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Os_is_windows_10_or_later()
+    {
+        var os = DeviceScanner.Os();
+        Assert.Equal(10, os.Major);
+        Assert.True(os.Build >= 10240);
+        Assert.Contains(os.Architecture, new[] { "amd64", "arm64" });
+    }
+}
+
+public class NeedsDriverTests
+{
+    static readonly InstalledDriver Drv = new("x", "v", DriverVersion.Parse("1.0"), new(2020, 1, 1), "oem1.inf", "X", 0x00FF2000);
+    static Device Dev(int problem, InstalledDriver? d) => new("D", "D", "D", "", "", ["X"], [], problem, d);
+
+    [Fact] public void Failed_install_needs_a_driver() => Assert.True(Dev(28, null).NeedsDriver);
+    [Fact] public void Reinstall_needs_a_driver_even_with_one() => Assert.True(Dev(18, Drv).NeedsDriver);
+    [Fact] public void Driverless_device_with_a_problem_needs_one() => Assert.True(Dev(10, null).NeedsDriver);
+    [Fact] public void Driverless_device_without_a_problem_is_fine() => Assert.False(Dev(0, null).NeedsDriver);
+    [Fact] public void Working_driver_is_fine() => Assert.False(Dev(0, Drv).NeedsDriver);
+}

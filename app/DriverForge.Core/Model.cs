@@ -17,13 +17,18 @@ public sealed record Device(
     IReadOnlyList<string> HardwareIds,
     IReadOnlyList<string> CompatibleIds,
     int ProblemCode,
-    InstalledDriver? Installed)
+    InstalledDriver? Installed,
+    Guid ClassGuid = default)
 {
     // CM_PROB_NOT_CONFIGURED, CM_PROB_REINSTALL, CM_PROB_FAILED_INSTALL
     static readonly int[] NoDriverProblems = [1, 18, 28];
 
-    /// <summary>The device has no working driver (SPEC §3.1).</summary>
-    public bool NeedsDriver => Installed is null || NoDriverProblems.Contains(ProblemCode);
+    /// <summary>
+    /// The device has no working driver (SPEC §3.1). A device with no driver
+    /// and no problem code (the device tree root, raw and software devices)
+    /// works as it is, so it doesn't count.
+    /// </summary>
+    public bool NeedsDriver => NoDriverProblems.Contains(ProblemCode) || (Installed is null && ProblemCode != 0);
 
     public string DisplayName =>
         !string.IsNullOrWhiteSpace(Name) ? Name
@@ -41,7 +46,8 @@ public sealed record InstalledDriver(
     DateOnly? Date,
     string Inf,
     string MatchingId,
-    uint? Rank);
+    uint? Rank,
+    string InfSection = "");
 
 public enum MatchKind { HardwareId, CompatibleId }
 

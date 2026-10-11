@@ -17,6 +17,24 @@ public partial class App : Application
         string data = DataDirectory();
         IDriverEngine engine = e.Args.Contains("--demo") ? new DemoEngine() : new WindowsEngine(data);
 
+        // Headless: write the scan as JSON and exit. Used to check the scan
+        // against Windows' own device list on the test box (build/check-scan.sh).
+        if (Arg(e.Args, "--scan-json") is { } json)
+        {
+            try
+            {
+                var report = Task.Run(() => engine.ScanAsync(null)).GetAwaiter().GetResult();
+                File.WriteAllText(json, ScanJson.Write(report));
+                Shutdown(0);
+            }
+            catch (Exception ex)
+            {
+                File.WriteAllText(json + ".error.txt", ex.ToString());
+                Shutdown(1);
+            }
+            return;
+        }
+
         var main = new MainViewModel(engine, data);
         var window = new MainWindow { DataContext = main };
         MainWindow = window;

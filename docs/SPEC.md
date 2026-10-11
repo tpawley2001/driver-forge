@@ -95,7 +95,10 @@ UI shows. Data types are in `DriverForge.Core/Model.cs`.
 - ID lists are kept **in order**: position feeds the rank (section 5.1).
 - A device **needs a driver** when it has problem code 28
   (`CM_PROB_FAILED_INSTALL`, no driver installed), 1 (`CM_PROB_NOT_CONFIGURED`)
-  or 18 (`CM_PROB_REINSTALL`), or no driver INF at all.
+  or 18 (`CM_PROB_REINSTALL`), or no driver INF together with any other
+  problem code. No INF and no problem is a working device (the device tree
+  root `HTREE\ROOT\0`, raw and software devices); Device Manager shows no
+  warning for those either.
 
 ### 3.2 OS facts
 
@@ -368,7 +371,7 @@ snapshots); show them, don't pre-select them.
 
 | # | Milestone | Done when |
 |---|---|---|
-| 1 | Device scan (§3) | Device list on the test box matches Device Manager, IDs in order, installed-driver fields filled |
+| 1 | Device scan (§3) | Device list on the test box matches Device Manager, IDs in order, installed-driver fields filled. **Done 2026-10-10**: `build/check-scan.sh` matches WMI's PnP view on the test box exactly (155 devices) |
 | 2 | Ranking (§5) | `DriverRank`/`DriverComparer`/`Recommender` tests pass; real SetupAPI rank read for staged drivers (§4.4) |
 | 3 | Windows Update source (§4.1) | Optional driver updates listed and one installed on the test box |
 | 4 | Install + backup + history (§6, §7) | Install, verify, roll back one device on the test box |
