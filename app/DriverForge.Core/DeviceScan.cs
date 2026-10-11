@@ -192,7 +192,7 @@ internal readonly record struct DevKey(Guid Fmtid, uint Pid)
     public Native.DEVPROPKEY ToNative() => new() { fmtid = Fmtid, pid = Pid };
 }
 
-internal static class Native
+internal static partial class Native
 {
     public const uint DIGCF_PRESENT = 0x2, DIGCF_ALLCLASSES = 0x4;
     public const int ERROR_INSUFFICIENT_BUFFER = 122, ERROR_NO_MORE_ITEMS = 259;

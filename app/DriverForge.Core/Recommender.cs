@@ -55,13 +55,16 @@ public static class Recommender
             return new(device, DeviceState.UpToDate, null, ranked, null);
 
         var installed = device.Installed!;
-        // Never offer a downgrade as an update, however well it matches.
-        if (best.Date is { } bd && installed.Date is { } id && bd < id)
+        // Without the installed rank, assume it matched as well as the offer.
+        uint installedRank = installed.Rank ?? best.Rank;
+
+        // Never offer a downgrade as an update, however well it matches. Only
+        // an offer that ranks at least as well as the installed driver would
+        // win; a worse-ranked older one (an inbox generic driver) is no news.
+        if (best.Rank <= installedRank && best.Date is { } bd && installed.Date is { } id && bd < id)
             return new(device, DeviceState.Skipped, null, ranked,
                 $"The best-matched driver ({best.Version}, {bd:yyyy-MM-dd}) is older than the installed one, so it isn't recommended.");
 
-        // Without the installed rank, assume it matched as well as the offer.
-        uint installedRank = installed.Rank ?? best.Rank;
         bool better = DriverComparer.Compare(best.Rank, best.Date, best.Version,
             installedRank, installed.Date, installed.Version) < 0;
         bool same = best.Version.CompareTo(installed.Version) == 0 && best.Date == installed.Date;

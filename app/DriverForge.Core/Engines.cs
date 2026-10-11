@@ -1,22 +1,44 @@
 namespace DriverForge.Core;
 
 /// <summary>
-/// The real engine (SPEC §3–§7). Built so far: the device scan (milestone 1).
-/// No driver sources yet, so a scan lists devices without offers.
+/// The real engine (SPEC §3–§7): scans devices, asks every source in
+/// parallel, installs. A failing source never fails the scan; it adds a warning.
 /// </summary>
 public sealed class WindowsEngine(string dataDirectory) : IDriverEngine
 {
     public string Name => "Windows engine";
     public string DataDirectory { get; } = dataDirectory;
 
-    public Task<ScanResult> ScanAsync(IProgress<string>? progress, CancellationToken ct = default) => Task.Run(() =>
+    public IReadOnlyList<IDriverSource> Sources { get; } = [new DriverStoreSource()];
+
+    public async Task<ScanResult> ScanAsync(IProgress<string>? progress, CancellationToken ct = default)
     {
         progress?.Report("Reading devices…");
-        var os = DeviceScanner.Os();
-        var devices = DeviceScanner.Scan(ct: ct);
-        return new ScanResult(DateTime.Now, os, devices, new Dictionary<string, IReadOnlyList<DriverOffer>>(),
-            ["No driver sources are built yet, so no updates are offered (Windows Update is milestone 3)."]);
-    }, ct);
+        var (os, devices) = await Task.Run(() => (DeviceScanner.Os(), DeviceScanner.Scan(ct: ct)), ct);
+
+        var warnings = new List<string>();
+        var runs = Sources.Select(async s =>
+        {
+            try { return (s, offers: await s.FindAsync(devices, os, progress, ct), error: (string?)null); }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                return (s, offers: (IReadOnlyList<SourcedOffer>)[], error: ex.Message);
+            }
+        }).ToList();
+        var offers = new Dictionary<string, List<DriverOffer>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (source, found, error) in await Task.WhenAll(runs))
+        {
+            if (error is not null) warnings.Add($"{source.Name}: {error}");
+            foreach (var o in found)
+            {
+                if (!offers.TryGetValue(o.InstanceId, out var list)) offers[o.InstanceId] = list = [];
+                list.Add(o.Offer);
+            }
+        }
+        return new ScanResult(DateTime.Now, os, devices,
+            offers.ToDictionary(kv => kv.Key, kv => (IReadOnlyList<DriverOffer>)kv.Value, StringComparer.OrdinalIgnoreCase),
+            warnings);
+    }
 
     public Task<InstallResult> InstallAsync(Device device, DriverOffer offer, InstallOptions options,
         IProgress<InstallStep>? progress, CancellationToken ct = default) =>

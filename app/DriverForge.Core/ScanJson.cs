@@ -34,6 +34,21 @@ public static class ScanJson
                 i.MatchingId,
                 Rank = i.Rank is { } rk ? $"0x{rk:X8}" : null,
             } : null,
+            offers = r.OffersFor(d).Select(o => new
+            {
+                o.Source,
+                o.Description,
+                o.Provider,
+                Version = o.Version.ToString(),
+                Date = o.Date?.ToString("yyyy-MM-dd"),
+                o.Inf,
+                o.InfSection,
+                o.MatchedId,
+                Match = o.Match.ToString(),
+                Rank = $"0x{o.Rank:X8}",
+                o.Signed,
+            }),
+            assessment = Recommender.Assess(d, r.OffersFor(d)) is var a ? new { State = a.State.ToString(), a.Reason, Recommended = a.Recommended?.Id } : null,
         }),
         r.Warnings,
     }, Options);

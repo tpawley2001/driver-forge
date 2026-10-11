@@ -65,7 +65,8 @@ public sealed record DriverOffer(
     bool Signed,
     bool IsLocal,
     long? DownloadBytes = null,
-    string? Inf = null);
+    string? Inf = null,
+    string? InfSection = null);
 
 public sealed record ScanResult(
     DateTime At,
@@ -83,6 +84,18 @@ public sealed record InstallOptions(bool TestMode);
 public enum InstallStep { Downloading, Extracting, BackingUp, Installing, Verifying }
 
 public sealed record InstallResult(bool Ok, bool NeedsRestart, int ErrorCode, string Message, bool Simulated = false);
+
+/// <summary>Somewhere drivers come from (SPEC §4).</summary>
+public interface IDriverSource
+{
+    string Name { get; }
+    Task<IReadOnlyList<SourcedOffer>> FindAsync(IReadOnlyList<Device> devices, OsInfo os, IProgress<string>? progress, CancellationToken ct);
+    /// <summary>Make the offer's driver package available locally; returns the INF path.</summary>
+    Task<string> AcquireAsync(DriverOffer offer, IProgress<InstallStep>? progress, CancellationToken ct);
+}
+
+/// <summary>An offer a source found, with the device it is for.</summary>
+public sealed record SourcedOffer(string InstanceId, DriverOffer Offer);
 
 public interface IDriverEngine
 {

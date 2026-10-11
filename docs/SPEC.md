@@ -277,7 +277,9 @@ driver's real rank (`DEVPKEY_Device_DriverRank`), date and version:
   match can rank an old driver above a newer installed one; Driver Forge
   never offers a downgrade as an update.
 - **Skipped**: the device is ignored, is vendor-managed (5.4), or its best
-  offer is older than what's installed (the reason says so).
+  offer ranks at least as well as the installed driver but is older (the
+  reason says so). A worse-ranked older offer, such as an inbox generic
+  driver in the driver store, is no news: the device is up to date.
 - **No driver found**: needs a driver, no offers.
 - **Up to date**: everything else.
 
@@ -372,7 +374,7 @@ snapshots); show them, don't pre-select them.
 | # | Milestone | Done when |
 |---|---|---|
 | 1 | Device scan (§3) | Device list on the test box matches Device Manager, IDs in order, installed-driver fields filled. **Done 2026-10-10**: `build/check-scan.sh` matches WMI's PnP view on the test box exactly (155 devices) |
-| 2 | Ranking (§5) | `DriverRank`/`DriverComparer`/`Recommender` tests pass; real SetupAPI rank read for staged drivers (§4.4) |
+| 2 | Ranking (§5) | `DriverRank`/`DriverComparer`/`Recommender` tests pass; real SetupAPI rank read for staged drivers (§4.4). **Done 2026-10-10**: `DriverNodes` reads Windows' rank; the computed identifier score equals Windows' on every staged node (live test) |
 | 3 | Windows Update source (§4.1) | Optional driver updates listed and one installed on the test box |
 | 4 | Install + backup + history (§6, §7) | Install, verify, roll back one device on the test box |
 | 5 | Catalog source (§4.2) | A device WU has nothing for gets a Catalog offer, installed from the cab |

@@ -122,9 +122,9 @@ public sealed partial class DriversViewModel : ObservableObject
             .ToList();
         building = false;
 
-        MissingCount = rows.Count(r => r.State == DeviceState.Missing);
+        MissingCount = rows.Count(r => IsMissing(r.State));
         UpdateCount = rows.Count(r => r.State == DeviceState.Update);
-        SkippedCount = rows.Count(r => r.State is DeviceState.Skipped or DeviceState.NoDriverFound);
+        SkippedCount = rows.Count(r => r.State == DeviceState.Skipped);
         UpToDateCount = rows.Count(r => r.State == DeviceState.UpToDate);
         OnPropertyChanged(nameof(AttentionCount));
         Subtitle = $"{rows.Count} devices scanned · {report.At:t} · {report.Os}";
@@ -134,9 +134,13 @@ public sealed partial class DriversViewModel : ObservableObject
 
         UpdateChips();
         Rebuild();
-        Selected = rows.FirstOrDefault(r => r.State is DeviceState.Missing or DeviceState.Update) ?? rows.FirstOrDefault();
+        Selected = rows.FirstOrDefault(r => r.State is DeviceState.Missing or DeviceState.Update)
+            ?? rows.FirstOrDefault(r => r.State == DeviceState.NoDriverFound) ?? rows.FirstOrDefault();
         OnRowSelectionChanged();
     }
+
+    /// <summary>Not working, whether or not a source has a driver for it.</summary>
+    static bool IsMissing(DeviceState s) => s is DeviceState.Missing or DeviceState.NoDriverFound;
 
     void UpdateChips()
     {
@@ -163,12 +167,12 @@ public sealed partial class DriversViewModel : ObservableObject
             if (items.Count > 0) Groups.Add(new(title, items));
         }
         bool all = Filter == DeviceFilter.Attention;
-        if (all || Filter == DeviceFilter.Missing) Add("MISSING DRIVERS", r => r.State == DeviceState.Missing);
+        if (all || Filter == DeviceFilter.Missing) Add("MISSING DRIVERS", r => IsMissing(r.State));
         if (all || Filter == DeviceFilter.Updates) Add("UPDATES AVAILABLE", r => r.State == DeviceState.Update);
-        if (Filter == DeviceFilter.Skipped) Add("SKIPPED", r => r.State is DeviceState.Skipped or DeviceState.NoDriverFound);
+        if (Filter == DeviceFilter.Skipped) Add("SKIPPED", r => r.State == DeviceState.Skipped);
         if (Filter == DeviceFilter.UpToDate) Add("UP TO DATE", r => r.State == DeviceState.UpToDate);
         // Hand-picked drivers stay visible wherever they live.
-        if (all) Add("CHOSEN BY YOU", r => r.IsChecked && r.State is not (DeviceState.Missing or DeviceState.Update));
+        if (all) Add("CHOSEN BY YOU", r => r.IsChecked && r.State is not (DeviceState.Missing or DeviceState.NoDriverFound or DeviceState.Update));
     }
 
     void OnRowSelectionChanged()
@@ -195,7 +199,7 @@ public sealed partial class DriversViewModel : ObservableObject
         if (row is null) return;
         Filter = row.State switch
         {
-            DeviceState.Missing or DeviceState.Update => DeviceFilter.Attention,
+            DeviceState.Missing or DeviceState.NoDriverFound or DeviceState.Update => DeviceFilter.Attention,
             DeviceState.UpToDate => DeviceFilter.UpToDate,
             _ => DeviceFilter.Skipped,
         };

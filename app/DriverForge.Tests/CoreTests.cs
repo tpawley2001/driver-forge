@@ -141,6 +141,17 @@ public class RecommenderTests
         var offer = new DriverOffer("o", "test", "x", "v", DriverVersion.Parse("1.0"), new(2020, 1, 1), "X", MatchKind.HardwareId, 0x00FF0000, true, true);
         Assert.Equal(DeviceState.UpToDate, Recommender.Assess(d, [offer]).State);
     }
+
+    [Fact]
+    public void Worse_ranked_older_generic_driver_is_up_to_date()
+    {
+        var installed = new InstalledDriver("Vendor", "Intel", DriverVersion.Parse("10.1.1.45"), new(2020, 9, 9), "oem3.inf", "PCI\\VEN_8086&DEV_A145", 0x00FF0001);
+        var d = new Device("D", "D", "D", "", "", ["PCI\\VEN_8086&DEV_A145&REV_31", "PCI\\VEN_8086&DEV_A145"], ["PCI\\CC_0601"], 0, installed);
+        var generic = new DriverOffer("g", "This PC", "PCI standard ISA bridge", "Microsoft", DriverVersion.Parse("10.0.19041.1"), new(2006, 6, 21), "PCI\\CC_0601", MatchKind.CompatibleId, 0x00FF2000, true, true);
+        var a = Recommender.Assess(d, [generic]);
+        Assert.Equal(DeviceState.UpToDate, a.State);
+        Assert.Null(a.Reason);
+    }
 }
 
 public class PropertyDataTests
@@ -206,4 +217,42 @@ public class NeedsDriverTests
     [Fact] public void Driverless_device_with_a_problem_needs_one() => Assert.True(Dev(10, null).NeedsDriver);
     [Fact] public void Driverless_device_without_a_problem_is_fine() => Assert.False(Dev(0, null).NeedsDriver);
     [Fact] public void Working_driver_is_fine() => Assert.False(Dev(0, Drv).NeedsDriver);
+}
+
+/// <summary>Windows' real ranks on the PC the tests run on. Read-only.</summary>
+public class LiveRankTests(ITestOutputHelper output)
+{
+    [Fact]
+    public void Computed_identifier_score_matches_windows()
+    {
+        int nodes = 0;
+        var wrong = new List<string>();
+        foreach (var d in DeviceScanner.Scan().Where(d => d.HardwareIds.Count > 0))
+            foreach (var n in DriverNodes.Staged(d.InstanceId))
+            {
+                nodes++;
+                var m = IdMatch.Best(d, n.InfHardwareId, n.InfCompatibleIds);
+                uint windows = n.Rank & 0xFFFF;
+                if (m is null || m.Value.Score != windows)
+                    wrong.Add($"{d.InstanceId} {Path.GetFileName(n.Inf)} {n.InfHardwareId}: windows 0x{windows:X4} computed {(m is null ? "none" : $"0x{m.Value.Score:X4}")}");
+            }
+        output.WriteLine($"{nodes} staged driver nodes, {wrong.Count} identifier mismatches");
+        foreach (var w in wrong.Take(20)) output.WriteLine(w);
+        Assert.True(nodes > 0);
+        Assert.Empty(wrong);
+    }
+
+    [Fact]
+    public void Installed_driver_is_among_the_staged_nodes_with_its_rank()
+    {
+        var d = DeviceScanner.Scan().First(d => d.InstanceId.StartsWith("PCI\\", StringComparison.OrdinalIgnoreCase) && d.Installed?.Rank is not null);
+        var installed = DriverNodes.Staged(d.InstanceId).Where(n => n.IsInstalled).ToList();
+        Assert.Single(installed);
+        Assert.Equal(d.Installed!.Rank, installed[0].Rank);
+        Assert.Equal(d.Installed.Version, installed[0].Version);
+    }
+
+    [Fact]
+    public void Driver_version_dwordlong_unpacks_most_significant_first() =>
+        Assert.Equal("10.0.19041.1", DriverNodes.Version(0x000A_0000_4A61_0001).ToString());
 }
