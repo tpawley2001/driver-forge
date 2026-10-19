@@ -4,7 +4,9 @@ Driver Forge finds, installs, backs up and rolls back Windows device drivers.
 This document specifies the **engine**: everything below the WPF front end.
 It is written from Microsoft's public documentation only (listed in
 [Sources](#sources)) and from the app's own requirements. Read
-[CLEAN-ROOM.md](CLEAN-ROOM.md) before working on the engine.
+[CLEAN-ROOM.md](CLEAN-ROOM.md) before working on the engine. The Apps page
+(installing and updating programs through winget) has its own spec:
+[APPS.md](APPS.md).
 
 Target: Windows 10 1809+ and Windows 11, x64 (arm64 later). .NET 10, C#.
 The engine lives in `DriverForge.Core`, with no native code of its own:
