@@ -1,0 +1,229 @@
+<UserControl x:Class="DriverForge.Views.AppsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:vm="clr-namespace:DriverForge.ViewModels"
+             x:Name="Root">
+    <UserControl.Resources>
+        <!-- One app in a category card or in "Other apps". -->
+        <DataTemplate x:Key="AppCheck" DataType="{x:Type vm:AppRowViewModel}">
+            <DockPanel Margin="0,3">
+                <Border DockPanel.Dock="Right" Style="{StaticResource Badge}" Background="{StaticResource UpdateBg}" Margin="8,0,0,0"
+                        Visibility="{Binding HasUpdate, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="Update" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource UpdateFg}" />
+                </Border>
+                <ui:SymbolIcon DockPanel.Dock="Right" Symbol="CheckmarkCircle16" FontSize="14" Foreground="{StaticResource OkFg}" Margin="8,0,0,0"
+                               ToolTip="Installed" Visibility="{Binding IsInstalled, Converter={StaticResource BoolToVis}}" />
+                <CheckBox IsChecked="{Binding IsChecked}" MinWidth="0" Padding="6,0,0,0" VerticalContentAlignment="Center"
+                          AutomationProperties.Name="{Binding Name}" ToolTip="{Binding Id}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Name}" Foreground="White" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Detail}" FontSize="11" Foreground="{StaticResource TextTertiary}" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                </CheckBox>
+            </DockPanel>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <DockPanel Margin="32,24,32,0">
+        <!-- Header: title, tabs, refresh -->
+        <StackPanel DockPanel.Dock="Top">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Content="Get apps" Command="{Binding ShowGetCommand}" Margin="0,0,8,0">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource GhostButton}">
+                                <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ShowUpdates}" Value="True">
+                                        <Setter Property="BorderBrush" Value="{StaticResource Line}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <Button Command="{Binding ShowUpdateListCommand}" Margin="0,0,8,0" Content="{Binding UpdatesText}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource GhostButton}">
+                                <Setter Property="BorderBrush" Value="{StaticResource Line}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ShowUpdates}" Value="True">
+                                        <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <Button Style="{StaticResource GhostButton}" Content="Refresh" Command="{Binding RefreshCommand}"
+                            IsEnabled="{Binding IsRunning, Converter={StaticResource InvBool}}" />
+                </StackPanel>
+                <TextBlock Text="Apps" FontSize="28" FontWeight="SemiBold" Foreground="White" />
+            </DockPanel>
+            <TextBlock Style="{StaticResource Secondary}" FontSize="14" TextWrapping="Wrap" Margin="0,4,0,8"
+                       Text="Tick the apps you want and install them in one go: silently, from their publishers, through Windows Package Manager. Each install is checked for programs it added besides the app." />
+            <TextBlock Text="{Binding EngineStatus}" Style="{StaticResource Secondary}" FontSize="12" Margin="0,0,0,8" />
+
+            <Border Style="{StaticResource PanelCard}" Margin="0,0,0,12" Visibility="{Binding Status, Converter={StaticResource NullToVis}}">
+                <DockPanel>
+                    <ui:ProgressRing DockPanel.Dock="Left" IsIndeterminate="True" Width="18" Height="18" Margin="0,0,12,0"
+                                     Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
+                    <TextBlock Text="{Binding Status}" Foreground="White" TextWrapping="Wrap" VerticalAlignment="Center" />
+                </DockPanel>
+            </Border>
+
+            <!-- Running a batch -->
+            <Border Style="{StaticResource PanelCard}" Margin="0,0,0,12" Visibility="{Binding IsRunning, Converter={StaticResource BoolToVis}}">
+                <StackPanel>
+                    <DockPanel Margin="0,0,0,8">
+                        <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Content="Cancel after this app" Command="{Binding CancelCommand}" />
+                        <TextBlock Text="{Binding ProgressText}" Foreground="White" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                    </DockPanel>
+                    <ProgressBar Value="{Binding ProgressValue}" Maximum="100" Height="6" />
+                </StackPanel>
+            </Border>
+
+            <!-- Results of the last batch -->
+            <ItemsControl ItemsSource="{Binding Results}" Margin="0,0,0,8">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type vm:AppResultViewModel}">
+                        <Border Style="{StaticResource PanelCard}" Margin="0,0,0,4" Padding="12,8">
+                            <StackPanel>
+                                <DockPanel>
+                                    <Border DockPanel.Dock="Left" Margin="0,0,10,0">
+                                        <Border.Style>
+                                            <Style TargetType="Border" BasedOn="{StaticResource Badge}">
+                                                <Setter Property="Background" Value="{StaticResource MissingBg}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Ok}" Value="True">
+                                                        <Setter Property="Background" Value="{StaticResource OkBg}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <TextBlock Text="{Binding Outcome}" FontSize="11" FontWeight="SemiBold" Foreground="White" />
+                                    </Border>
+                                    <TextBlock Foreground="White" TextWrapping="Wrap" VerticalAlignment="Center">
+                                        <Run Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold" /><Run Text="  " /><Run Text="{Binding Message, Mode=OneWay}" Foreground="{StaticResource TextSecondary}" />
+                                    </TextBlock>
+                                </DockPanel>
+                                <ItemsControl ItemsSource="{Binding Extras}" Margin="0,6,0,0">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <DockPanel Margin="0,2">
+                                                <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Content="Uninstall"
+                                                        Command="{Binding DataContext.UninstallExtraCommand, ElementName=Root}" CommandParameter="{Binding}" />
+                                                <TextBlock VerticalAlignment="Center" Foreground="{StaticResource WarnFg}" TextWrapping="Wrap">
+                                                    <Run Text="Also installed: " /><Run Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold" /><Run Text="  " /><Run Text="{Binding Publisher, Mode=OneWay}" Foreground="{StaticResource TextSecondary}" />
+                                                </TextBlock>
+                                            </DockPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+
+        <!-- Bottom bar -->
+        <Border DockPanel.Dock="Bottom" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="0,12,0,16">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
+                            IsEnabled="{Binding IsRunning, Converter={StaticResource InvBool}}">
+                    <StackPanel Orientation="Horizontal" Visibility="{Binding ShowUpdates, Converter={StaticResource InvBoolToVis}}">
+                        <Button Style="{StaticResource GhostButton}" Content="Import list" Command="{Binding ImportListCommand}" Margin="0,0,8,0" />
+                        <Button Style="{StaticResource GhostButton}" Content="Export list" Command="{Binding ExportListCommand}" Margin="0,0,8,0" />
+                        <Button Style="{StaticResource PrimaryButton}" Content="Install" Command="{Binding InstallCommand}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Visibility="{Binding ShowUpdates, Converter={StaticResource BoolToVis}}">
+                        <Button Style="{StaticResource GhostButton}" Content="Select all" Command="{Binding SelectAllUpdatesCommand}" Margin="0,0,8,0" />
+                        <Button Style="{StaticResource GhostButton}" Content="Update selected" Command="{Binding UpdateSelectedCommand}" Margin="0,0,8,0" />
+                        <Button Style="{StaticResource PrimaryButton}" Content="Update all" Command="{Binding UpdateAllCommand}"
+                                ToolTip="Every update except apps that update themselves" />
+                    </StackPanel>
+                </StackPanel>
+                <TextBlock Text="{Binding SelectionText}" Foreground="White" VerticalAlignment="Center" />
+            </DockPanel>
+        </Border>
+
+        <Grid>
+            <!-- Get apps -->
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Visibility="{Binding ShowUpdates, Converter={StaticResource InvBoolToVis}}">
+                <StackPanel Margin="0,0,0,16">
+                    <ui:TextBox PlaceholderText="Search all of winget (press Enter)" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                                Margin="0,0,0,12" Icon="{ui:SymbolIcon Search24}" AutomationProperties.Name="Search apps">
+                        <ui:TextBox.InputBindings>
+                            <KeyBinding Key="Enter" Command="{Binding SearchCommand}" />
+                        </ui:TextBox.InputBindings>
+                    </ui:TextBox>
+                    <Border Margin="0,0,0,12">
+                        <Border.Style>
+                            <Style TargetType="Border" BasedOn="{StaticResource PanelCard}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SearchResults.Count}" Value="0">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <StackPanel>
+                            <TextBlock Text="Other apps" Style="{StaticResource SectionLabel}" Margin="0,0,0,6" />
+                            <ItemsControl ItemsSource="{Binding SearchResults}" ItemTemplate="{StaticResource AppCheck}" />
+                        </StackPanel>
+                    </Border>
+                    <ItemsControl ItemsSource="{Binding Categories}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:AppCategoryViewModel}">
+                                <Border Style="{StaticResource PanelCard}" Width="300" Margin="0,0,12,12" VerticalAlignment="Top">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Name}" Style="{StaticResource SectionLabel}" Margin="0,0,0,6" />
+                                        <ItemsControl ItemsSource="{Binding Rows}" ItemTemplate="{StaticResource AppCheck}" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Updates -->
+            <ListBox ItemsSource="{Binding Updates}" Background="Transparent" BorderThickness="0" Margin="0,0,0,12"
+                     Visibility="{Binding ShowUpdates, Converter={StaticResource BoolToVis}}"
+                     VirtualizingPanel.IsVirtualizing="True" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="Padding" Value="0" />
+                        <Setter Property="Margin" Value="0,0,0,6" />
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ListBoxItem"><ContentPresenter /></ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </ListBox.ItemContainerStyle>
+                <ListBox.ItemTemplate>
+                    <DataTemplate DataType="{x:Type vm:AppRowViewModel}">
+                        <Border Style="{StaticResource PanelCard}">
+                            <DockPanel>
+                                <CheckBox DockPanel.Dock="Left" IsChecked="{Binding IsChecked}" VerticalAlignment="Center" Margin="0,0,12,0"
+                                          AutomationProperties.Name="{Binding Name}" />
+                                <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Content="Ignore this version" Margin="12,0,0,0"
+                                        Command="{Binding DataContext.IgnoreCommand, ElementName=Root}" CommandParameter="{Binding}" />
+                                <TextBlock DockPanel.Dock="Right" Text="{Binding Versions}" Foreground="White" VerticalAlignment="Center" Margin="12,0,0,0" />
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Name}" Foreground="White" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{Binding IdDetail}" Style="{StaticResource MonoSmall}" TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                            </DockPanel>
+                        </Border>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Grid>
+    </DockPanel>
+</UserControl>

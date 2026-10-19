@@ -71,7 +71,7 @@ public sealed class WinGetAppEngine(string dataDirectory) : IAppEngine, IDisposa
         });
 
     /// <summary>The row for exactly this winget ID, or null.</summary>
-    public Task<AppRow?> SearchExactAsync(string id) =>
+    public Task<AppRow?> FindAsync(string id) =>
         _session.RunAsync(pm =>
         {
             var pkg = WinGetSession.FindById(WinGetSession.Connect(pm, CompositeSearchBehavior.RemotePackagesFromAllCatalogs), id);

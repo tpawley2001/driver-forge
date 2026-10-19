@@ -264,6 +264,12 @@ Icons: the generic Fluent icon for the category. No vendor logos are shipped.
 6. Restarts: never automatic. "Restart to finish" is collected and shown once
    at the end.
 
+Uninstalls ask winget for silent mode, but an app's own uninstaller can
+ignore it: in A7, Brave's (Chromium's `setup.exe --uninstall`) waited on a
+prompt no one could see, and Firefox's opens a web page. The queue waits for
+the uninstaller like any installer (never killed half-way, §5.1); the
+progress line names the app so the user knows what it's waiting on.
+
 ### 5.2 Licence terms
 
 Packages that declare agreements are marked in the list. Before the batch

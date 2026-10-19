@@ -18,7 +18,10 @@ public static class AppsCli
         Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() },
     };
 
-    public static bool Handles(string[] args) => args.Any(a => a.StartsWith("--apps-", StringComparison.Ordinal) && a != "--apps-probe");
+    static readonly string[] Commands = ["--apps-install", "--apps-update", "--apps-uninstall", "--apps-export", "--apps-json"];
+
+    /// <summary>Only the command names: --apps-tab / --apps-search belong to --screenshot.</summary>
+    public static bool Handles(string[] args) => args.Any(a => Commands.Contains(a, StringComparer.Ordinal));
 
     public static async Task<int> RunAsync(string[] args, string data)
     {
@@ -105,7 +108,7 @@ public static class AppsCli
         var rows = new List<AppRow>();
         foreach (string id in ids.Select(i => i.Trim()).Where(i => i.Length > 0))
         {
-            var found = (await engine.SearchExactAsync(id));
+            var found = (await engine.FindAsync(id));
             rows.Add(found ?? new AppRow { Id = id, Name = id });
         }
         return rows;

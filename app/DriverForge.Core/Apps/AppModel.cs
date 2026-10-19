@@ -76,6 +76,8 @@ public interface IAppEngine
     Task<IReadOnlyList<AppRow>> ListUpdatesAsync(CancellationToken ct = default);
     Task<IReadOnlyList<AppRow>> ListInstalledAsync(CancellationToken ct = default);
     Task<IReadOnlyList<AppRow>> DescribeAsync(IReadOnlyList<AppRow> rows);
+    /// <summary>The row for exactly this winget ID, or null.</summary>
+    Task<AppRow?> FindAsync(string id);
     Task<AppResult> InstallAsync(AppRow app, AppInstallOptions options, IProgress<AppStep>? progress = null, CancellationToken ct = default);
     Task<AppResult> UpgradeAsync(AppRow app, AppInstallOptions options, IProgress<AppStep>? progress = null, CancellationToken ct = default);
     Task<AppResult> UninstallAsync(AppRow app, IProgress<AppStep>? progress = null, CancellationToken ct = default);

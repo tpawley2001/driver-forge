@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DriverForge.Core;
+using DriverForge.Core.Apps;
 using Wpf.Ui.Controls;
 
 namespace DriverForge.ViewModels;
@@ -19,9 +20,10 @@ public sealed partial class MainViewModel : ObservableObject
 {
     readonly string settingsPath;
 
-    public MainViewModel(IDriverEngine engine, string dataDirectory)
+    public MainViewModel(IDriverEngine engine, string dataDirectory, IAppEngine? apps = null)
     {
         Engine = engine;
+        appsEngine = new(() => apps ?? new WinGetAppEngine(dataDirectory));
         DataDirectory = dataDirectory;
         settingsPath = Path.Combine(dataDirectory, "settings.json");
         Settings = AppSettings.Load(settingsPath);
@@ -31,11 +33,14 @@ public sealed partial class MainViewModel : ObservableObject
         Sources = new SourcesViewModel(this);
         Cleanup = new CleanupViewModel(this);
         SystemInfo = new SystemInfoViewModel(this);
+        AppsPage = new AppsViewModel(this);
 
         driversNav = new("Drivers", SymbolRegular.DeveloperBoard24, Drivers);
+        appsNav = new("Apps", SymbolRegular.Apps24, AppsPage);
         Nav =
         [
             driversNav,
+            appsNav,
             new("Sources", SymbolRegular.CloudArrowDown24, Sources),
             new("History & rollback", SymbolRegular.History24, History),
             new("Cleanup", SymbolRegular.Broom24, Cleanup),
@@ -54,9 +59,14 @@ public sealed partial class MainViewModel : ObservableObject
     public SourcesViewModel Sources { get; }
     public CleanupViewModel Cleanup { get; }
     public SystemInfoViewModel SystemInfo { get; }
+    public AppsViewModel AppsPage { get; }
+    /// <summary>The Apps engine (APPS.md), created on first use.</summary>
+    public IAppEngine Apps => appsEngine.Value;
+    readonly Lazy<IAppEngine> appsEngine;
     public ObservableCollection<NavItem> Nav { get; }
 
     readonly NavItem driversNav;
+    readonly NavItem appsNav;
     readonly NavItem settingsNav;
     public NavItem SettingsNav => settingsNav;
 
@@ -82,6 +92,7 @@ public sealed partial class MainViewModel : ObservableObject
             System.Windows.MessageBoxImage.Warning) == System.Windows.MessageBoxResult.Yes;
 
     public void SetBadge(int n) => driversNav.Badge = n;
+    public void SetAppsBadge(int n) => appsNav.Badge = n;
 
     [RelayCommand]
     void Navigate(NavItem item)
@@ -93,6 +104,8 @@ public sealed partial class MainViewModel : ObservableObject
         if (item.Page is HistoryViewModel h) h.Refresh();
         if (item.Page is CleanupViewModel c) _ = c.LoadAsync();
         if (item.Page is SystemInfoViewModel si) _ = si.LoadAsync();
+        if (item.Page is AppsViewModel a) _ = a.LoadAsync();
+        if (item.Page is SettingsViewModel sp) sp.RefreshIgnoredApps();
     }
 
     public void ShowDrivers() => Navigate(driversNav);

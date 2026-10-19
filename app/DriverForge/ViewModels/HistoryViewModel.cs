@@ -10,12 +10,26 @@ public sealed class HistoryRowViewModel(HistoryEntry entry)
     public HistoryEntry Entry { get; } = entry;
     public string Device => Entry.DeviceName;
     public string When => Entry.At.ToString("g");
-    public string From => Entry.From?.ToString() ?? "No driver";
-    public string To => Entry.To.ToString();
+    // App entries (APPS.md §7) carry versions, not driver packages.
+    public string From => Entry.App is { } a ? (a.FromVersion is { } f ? "Version " + f : "Not installed")
+                        : Entry.From?.ToString() ?? "No driver";
+    public string To => Entry.App is { } b ? (b.Action == "Uninstall" ? "Removed" : "Version " + (b.ToVersion ?? "?"))
+                      : Entry.To.ToString();
     public string Result => Entry.Simulated ? "Simulated · nothing was changed"
-        : Entry.Ok ? (Entry.NeedsRestart ? "Installed · restart to finish" : "Installed")
-        : "Failed: " + Entry.Message;
-    public string Source => Entry.Source + (Entry.BackupFolder is not null ? " · old driver backed up" : "");
+        : !Entry.Ok ? "Failed: " + Entry.Message
+        : Entry.App is { } c ? AppResult(c)
+        : Entry.NeedsRestart ? "Installed · restart to finish" : "Installed";
+    public string Source => Entry.App is not null ? "App · " + Entry.Source
+        : Entry.Source + (Entry.BackupFolder is not null ? " · old driver backed up" : "");
+
+    string AppResult(AppChange c)
+    {
+        string done = c.Action switch { "Upgrade" => "Updated", "Uninstall" => "Uninstalled", _ => "Installed" };
+        if (Entry.Message.StartsWith("Already", StringComparison.Ordinal) || Entry.Message.StartsWith("Up to date", StringComparison.Ordinal)) done = Entry.Message.TrimEnd('.');
+        if (Entry.NeedsRestart) done += " · restart to finish";
+        if (c.Extras.Count > 0) done += " · also installed: " + string.Join(", ", c.Extras);
+        return done;
+    }
     public bool CanRollBack => Entry.CanRollBack;
     public bool Failed => !Entry.Ok;
 }

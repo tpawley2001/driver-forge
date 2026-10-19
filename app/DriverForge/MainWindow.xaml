@@ -20,6 +20,7 @@
         <DataTemplate DataType="{x:Type vm:SourcesViewModel}"><views:SourcesView /></DataTemplate>
         <DataTemplate DataType="{x:Type vm:CleanupViewModel}"><views:CleanupView /></DataTemplate>
         <DataTemplate DataType="{x:Type vm:SystemInfoViewModel}"><views:SystemInfoView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:AppsViewModel}"><views:AppsView /></DataTemplate>
 
         <DataTemplate x:Key="NavButton" DataType="{x:Type vm:NavItem}">
             <Button Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=ui:FluentWindow}}"

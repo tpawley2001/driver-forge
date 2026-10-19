@@ -111,7 +111,7 @@ for (\$i = 0; \$i -lt 3600 -and (Get-ScheduledTask -TaskName DriverForgeRun).Sta
   deploy)
     # Replace the app but keep its settings and data.
     winps "$TEST_HOST" "
-Get-Process DriverForge -ErrorAction SilentlyContinue | Stop-Process -Force
+Get-Process DriverForge -ErrorAction SilentlyContinue | Where-Object { \$_.Path -like '$APP\\*' } | Stop-Process -Force
 Get-ChildItem '$APP' -Force -ErrorAction SilentlyContinue | Where-Object { \$_.Name -notin 'settings.json','backups','cache','history.jsonl' } | Remove-Item -Recurse -Force
 New-Item -ItemType Directory -Force '$APP' | Out-Null
 " 2>&1 | grep -v '^#< CLIXML\|^<Objs' || true
@@ -132,6 +132,6 @@ New-Item -ItemType Directory -Force '$APP' | Out-Null
     done
     echo "the app produced no screenshot" >&2; exit 1 ;;
   stop)
-    winps "$TEST_HOST" "Get-Process DriverForge -ErrorAction SilentlyContinue | Stop-Process -Force; Unregister-ScheduledTask -TaskName DriverForgeGui -Confirm:\$false -ErrorAction SilentlyContinue; Unregister-ScheduledTask -TaskName DriverForgeShot -Confirm:\$false -ErrorAction SilentlyContinue; 'stopped'" 2>&1 | grep -v 'CLIXML\|^<Objs' ;;
+    winps "$TEST_HOST" "Get-Process DriverForge -ErrorAction SilentlyContinue | Where-Object { \$_.Path -like '$APP\\*' } | Stop-Process -Force; Unregister-ScheduledTask -TaskName DriverForgeGui -Confirm:\$false -ErrorAction SilentlyContinue; Unregister-ScheduledTask -TaskName DriverForgeShot -Confirm:\$false -ErrorAction SilentlyContinue; 'stopped'" 2>&1 | grep -v 'CLIXML\|^<Objs' ;;
   *) sed -n 2,8p "$0"; exit 2 ;;
 esac

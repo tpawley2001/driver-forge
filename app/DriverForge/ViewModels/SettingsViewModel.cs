@@ -13,6 +13,47 @@ public sealed partial class SettingsViewModel : ObservableObject
     {
         this.main = main;
         Ignored = new(main.Settings.IgnoredDevices.Order());
+        IgnoredApps = new(IgnoredAppRows());
+    }
+
+    // ── Apps (docs/APPS.md) ──
+    public ObservableCollection<KeyValuePair<string, string>> IgnoredApps { get; }
+
+    IEnumerable<KeyValuePair<string, string>> IgnoredAppRows() =>
+        main.Settings.IgnoredApps.OrderBy(kv => kv.Key)
+            .Select(kv => new KeyValuePair<string, string>(kv.Key, kv.Value.Length == 0 ? "every version" : "version " + kv.Value));
+
+    public void RefreshIgnoredApps()
+    {
+        IgnoredApps.Clear();
+        foreach (var row in IgnoredAppRows()) IgnoredApps.Add(row);
+    }
+
+    [RelayCommand]
+    async Task UnignoreApp(string id)
+    {
+        main.Settings.IgnoredApps.Remove(id);
+        main.SaveSettings();
+        RefreshIgnoredApps();
+        await main.AppsPage.LoadAsync(force: true);
+    }
+
+    public bool AutoUpdateApps
+    {
+        get => main.Settings.AutoUpdateApps;
+        set { main.Settings.AutoUpdateApps = value; main.SaveSettings(); OnPropertyChanged(); }
+    }
+
+    public bool AppsRestorePoint
+    {
+        get => main.Settings.AppsRestorePoint;
+        set { main.Settings.AppsRestorePoint = value; main.SaveSettings(); OnPropertyChanged(); }
+    }
+
+    public bool AppsAnyScope
+    {
+        get => main.Settings.AppsAnyScope;
+        set { main.Settings.AppsAnyScope = value; main.SaveSettings(); OnPropertyChanged(); }
     }
 
     public ObservableCollection<string> Ignored { get; }

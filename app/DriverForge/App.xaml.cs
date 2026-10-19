@@ -89,7 +89,7 @@ public partial class App : Application
             return;
         }
 
-        var main = new MainViewModel(engine, data);
+        var main = new MainViewModel(engine, data, e.Args.Contains("--demo") ? new DriverForge.Core.Apps.DemoAppEngine() : null);
         var window = new MainWindow { DataContext = main };
         MainWindow = window;
 
@@ -199,6 +199,22 @@ public partial class App : Application
             }
             if (page is not null) main.NavigateTo(page);
             if (main.CurrentPage is SystemInfoViewModel si) await si.LoadAsync();
+            if (main.CurrentPage is AppsViewModel apps)
+            {
+                await apps.LoadAsync();
+                if (Arg(Environment.GetCommandLineArgs(), "--apps-tab") == "updates") apps.ShowUpdates = true;
+                if (Arg(Environment.GetCommandLineArgs(), "--apps-search") is { } q) { apps.SearchText = q; await apps.SearchCommand.ExecuteAsync(null); }
+                // --apps-tick <id,id> [--test-install|--real-install]: tick and run them through the page itself.
+                if (Arg(Environment.GetCommandLineArgs(), "--apps-tick") is { } tick)
+                {
+                    var rows = await apps.TickAsync(tick.Split(','));
+                    if (testInstall || realInstall)
+                    {
+                        main.Settings.TestMode = !realInstall;      // not saved
+                        await apps.RunAsync(rows, DriverForge.Core.Apps.AppAction.Install);
+                    }
+                }
+            }
             await Task.Delay(800);
             await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
 

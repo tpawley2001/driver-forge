@@ -6,7 +6,7 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="32,24,32,32" MaxWidth="1000" HorizontalAlignment="Left">
             <TextBlock Text="History &amp; rollback" FontSize="28" FontWeight="SemiBold" Foreground="White" />
-            <TextBlock Text="Every driver change, newest first. Driver Forge backs up a third-party driver before replacing it, so you can put it back."
+            <TextBlock Text="Every driver and app change, newest first. Driver Forge backs up a third-party driver before replacing it, so you can put it back. Apps are undone by uninstalling them."
                        Style="{StaticResource Secondary}" FontSize="14" TextWrapping="Wrap" Margin="0,4,0,16" />
 
             <Border Style="{StaticResource PanelCard}" Margin="0,0,0,12" Visibility="{Binding Status, Converter={StaticResource NullToVis}}">

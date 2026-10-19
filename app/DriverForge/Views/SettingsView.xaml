@@ -9,7 +9,7 @@
 
             <Border Style="{StaticResource PanelCard}" Margin="0,0,0,12">
                 <DockPanel>
-                    <ui:ToggleSwitch DockPanel.Dock="Right" IsChecked="{Binding CreateRestorePoint}" VerticalAlignment="Center" />
+                    <ui:ToggleSwitch DockPanel.Dock="Right" Margin="16,0,0,0" IsChecked="{Binding CreateRestorePoint}" VerticalAlignment="Center" />
                     <StackPanel>
                         <TextBlock Text="Create a restore point before installing" FontWeight="SemiBold" Foreground="White" />
                         <TextBlock Text="Windows can roll the whole system back to it if a driver misbehaves." Style="{StaticResource Secondary}" TextWrapping="Wrap" />
@@ -19,7 +19,7 @@
 
             <Border Style="{StaticResource PanelCard}" Margin="0,0,0,12">
                 <DockPanel>
-                    <ui:ToggleSwitch DockPanel.Dock="Right" IsChecked="{Binding RestartWhenNeeded}" VerticalAlignment="Center" />
+                    <ui:ToggleSwitch DockPanel.Dock="Right" Margin="16,0,0,0" IsChecked="{Binding RestartWhenNeeded}" VerticalAlignment="Center" />
                     <StackPanel>
                         <TextBlock Text="Restart automatically when a driver needs it" FontWeight="SemiBold" Foreground="White" />
                         <TextBlock Text="Gives a 60-second warning first, which you can cancel." Style="{StaticResource Secondary}" TextWrapping="Wrap" />
@@ -29,10 +29,10 @@
 
             <Border Style="{StaticResource PanelCard}" Margin="0,0,0,12">
                 <DockPanel>
-                    <ui:ToggleSwitch DockPanel.Dock="Right" IsChecked="{Binding TestMode}" VerticalAlignment="Center" />
+                    <ui:ToggleSwitch DockPanel.Dock="Right" Margin="16,0,0,0" IsChecked="{Binding TestMode}" VerticalAlignment="Center" />
                     <StackPanel>
                         <TextBlock Text="Test mode" FontWeight="SemiBold" Foreground="White" />
-                        <TextBlock Text="Installs run end to end (download, extract) but skip the driver install itself. Nothing on this PC changes."
+                        <TextBlock Text="Installs run end to end (download, extract) but skip the driver install itself; apps are downloaded and hash-checked but not installed. Nothing on this PC changes."
                                    Style="{StaticResource Secondary}" TextWrapping="Wrap" />
                     </StackPanel>
                 </DockPanel>
@@ -81,6 +81,55 @@
                     </DockPanel>
                     <TextBlock Text="{Binding ScheduleError}" Foreground="{StaticResource MissingFg}" TextWrapping="Wrap" Margin="0,6,0,0"
                                Visibility="{Binding ScheduleError, Converter={StaticResource NullToVis}}" />
+                </StackPanel>
+            </Border>
+
+            <TextBlock Text="Apps" Style="{StaticResource SectionLabel}" Margin="0,8,0,8" />
+            <Border Style="{StaticResource PanelCard}" Margin="0,0,0,12">
+                <DockPanel>
+                    <ui:ToggleSwitch DockPanel.Dock="Right" Margin="16,0,0,0" IsChecked="{Binding AutoUpdateApps}" VerticalAlignment="Center" />
+                    <StackPanel>
+                        <TextBlock Text="Install app updates in the scheduled scan" FontWeight="SemiBold" Foreground="White" />
+                        <TextBlock Text="Off: the scan only tells you about app updates. On: it installs them, except apps that update themselves, ignored ones, and ones with licence terms to accept." Style="{StaticResource Secondary}" TextWrapping="Wrap" />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+            <Border Style="{StaticResource PanelCard}" Margin="0,0,0,12">
+                <DockPanel>
+                    <ui:ToggleSwitch DockPanel.Dock="Right" Margin="16,0,0,0" IsChecked="{Binding AppsRestorePoint}" VerticalAlignment="Center" />
+                    <StackPanel>
+                        <TextBlock Text="Create a restore point before installing apps" FontWeight="SemiBold" Foreground="White" />
+                        <TextBlock Text="Off by default: apps uninstall cleanly on their own. Turn it on to be able to roll the whole system back." Style="{StaticResource Secondary}" TextWrapping="Wrap" />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+            <Border Style="{StaticResource PanelCard}" Margin="0,0,0,12">
+                <DockPanel>
+                    <ui:ToggleSwitch DockPanel.Dock="Right" Margin="16,0,0,0" IsChecked="{Binding AppsAnyScope}" VerticalAlignment="Center" />
+                    <StackPanel>
+                        <TextBlock Text="Allow per-user installers" FontWeight="SemiBold" Foreground="White" />
+                        <TextBlock Text="Off: apps install for every user of this PC. On: apps that only offer a per-user installer install for the account Driver Forge runs as." Style="{StaticResource Secondary}" TextWrapping="Wrap" />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+            <Border Style="{StaticResource PanelCard}" Margin="0,0,0,12">
+                <StackPanel>
+                    <TextBlock Text="Ignored app updates" FontWeight="SemiBold" Foreground="White" />
+                    <TextBlock Text="A version you ignore stops being ignored when a newer one comes out." Style="{StaticResource Secondary}" Margin="0,0,0,10" />
+                    <TextBlock Text="None." Visibility="{Binding IgnoredApps.Count, Converter={StaticResource ZeroToVis}}" Foreground="{StaticResource TextTertiary}" />
+                    <ItemsControl ItemsSource="{Binding IgnoredApps}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <DockPanel Margin="0,2">
+                                    <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Content="Stop ignoring"
+                                            Command="{Binding DataContext.UnignoreAppCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding Key}" />
+                                    <TextBlock VerticalAlignment="Center" Foreground="White">
+                                        <Run Text="{Binding Key, Mode=OneWay}" FontFamily="Consolas" /><Run Text="  " /><Run Text="{Binding Value, Mode=OneWay}" Foreground="{StaticResource TextSecondary}" />
+                                    </TextBlock>
+                                </DockPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </StackPanel>
             </Border>
 

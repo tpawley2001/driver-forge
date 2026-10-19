@@ -132,6 +132,7 @@ public class AppQueueTests
         public Task<IReadOnlyList<AppRow>> ListUpdatesAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<AppRow>>([]);
         public Task<IReadOnlyList<AppRow>> ListInstalledAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<AppRow>>([]);
         public Task<IReadOnlyList<AppRow>> DescribeAsync(IReadOnlyList<AppRow> rows) => Task.FromResult(rows);
+        public Task<AppRow?> FindAsync(string id) => Task.FromResult<AppRow?>(null);
         public Task<AppResult> InstallAsync(AppRow app, AppInstallOptions o, IProgress<AppStep>? p = null, CancellationToken ct = default) => Do("install", app, AppAction.Install);
         public Task<AppResult> UpgradeAsync(AppRow app, AppInstallOptions o, IProgress<AppStep>? p = null, CancellationToken ct = default) => Do("upgrade", app, AppAction.Upgrade);
         public Task<AppResult> UninstallAsync(AppRow app, IProgress<AppStep>? p = null, CancellationToken ct = default) => Do("uninstall", app, AppAction.Uninstall);
