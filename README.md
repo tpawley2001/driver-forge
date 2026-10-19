@@ -1,6 +1,7 @@
 # Driver Forge
 
-Finds, installs, backs up and rolls back Windows device drivers. A modern
+Finds, installs, backs up and rolls back Windows device drivers, and
+installs and updates everyday apps in one go. A modern
 WPF app (Windows 11 Fluent look) over an engine built on Windows' own driver
 APIs. Windows itself decides which driver fits each device; Driver Forge
 finds the candidates and does the work around the install.
@@ -26,7 +27,15 @@ MIT License, © 2026 Hillyard Tech.
 - **System info:** model, board, BIOS/UEFI and Secure Boot, Windows, CPU,
   memory, graphics, disks with health, laptop battery wear, and every driver
   by install date. Copies as text without serial numbers.
-- **Scheduled scans** that notify you when something needs attention.
+- **Apps:** tick the apps you want (browsers, media, utilities, developer
+  tools…) and install them in one go, silently, from their publishers through
+  Windows Package Manager's catalog. Each install is checked for programs it
+  added besides the app. An Updates tab lists every installed app winget
+  knows a newer version of, with Update all and Ignore this version. App
+  lists are saved in `winget export`'s format, so they work with
+  `winget import` too. Needs Windows 10 1903 or later.
+- **Scheduled scans** that notify you when something needs attention
+  (drivers and app updates; app updates can also install automatically).
 
 ## Install
 
@@ -46,6 +55,7 @@ install except the install itself.
 ## Documents
 
 - [docs/SPEC.md](docs/SPEC.md): what the engine does and how, from Microsoft's documentation.
+- [docs/APPS.md](docs/APPS.md): the Apps page (winget, in-process) and its milestones.
 - [docs/CLEAN-ROOM.md](docs/CLEAN-ROOM.md): **read before touching the engine.** Driver
   Forge replaces an SDIO-based prototype; no SDIO code, formats or binaries may come in.
 - [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md): every shipped dependency and its license.
@@ -56,6 +66,7 @@ install except the install itself.
 |---|---|
 | `app/DriverForge` | WPF front end (.NET 10, WPF-UI, CommunityToolkit.Mvvm) |
 | `app/DriverForge.Core` | Engine: scan, sources, ranking, recommender, install, backup, history, cleanup, system info |
+| `app/DriverForge.Core/Apps` | Apps engine on the in-process winget engine; `catalog.json` = the curated list |
 | `app/DriverForge.Tests` | xunit v3 tests (the project is its own runner) |
 | `build/` | build, installer and GUI-test scripts (run from Linux, build on Windows) |
 | `installer/DriverForge.iss` | Inno Setup 6 script |
@@ -78,6 +89,9 @@ Copy `build/hosts.env.example` to `build/hosts.env` and name them there.
 | `build/gui.sh deploy` | copy the published app to the test box |
 | `build/gui.sh appshot out.png [page] [device] [--demo]` | the app renders itself to a PNG on the test box |
 | `build/check-scan.sh` | compare the device scan with Windows' WMI view on the test box |
+| `build/gui.sh run "<args>" [file…]` | run the app with arguments in the test box's signed-in session, elevated, and print files it wrote |
+| `build/gui.sh apps-probe <id> [--install]` | winget engine check: find (and install/uninstall) one package |
+| `build/apps-verify.sh start\|status` | install and uninstall every curated app on the test box, recording which are clean |
 
 **Driver installs are tested on the test box only, never on a daily-use PC.**
 
@@ -92,8 +106,14 @@ Copy `build/hosts.env.example` to `build/hosts.env` and name them there.
 | `--schedule Off\|Daily\|Weekly` | set the scheduled scan and exit |
 | `--scan-json <file>` | write the full scan (devices and offers) as JSON and exit |
 | `--real-install`, `--rollback <device>`, `--uninstall <device>`, `--remove-ghost <id>` | with `--screenshot`: automation for the test box |
+| `--apps-install <list.json> [--accept-agreements] [--scope machine\|any] [--test-mode]` | install a winget package list with no window (new-PC setup); exit 0 when all ended installed/updated/skipped |
+| `--apps-update [--include-self-updating] [--only <id,id>]` | update apps with no window |
+| `--apps-uninstall <id>`, `--apps-export <list.json> [--only <id,id>]` | uninstall one app / save installed apps as a list |
+| `--apps-json curated\|installed\|updates\|missing\|search=<text>\|describe=<id,id> <out.json>` | dump what the Apps engine sees |
+| `--apps-tick <id,id>`, `--apps-tab updates`, `--apps-search <text>` | with `--screenshot --page Apps`: automation for the test box |
 
 ## Data
 
 Portable copy: beside the exe. Installed copy (installer drops `installed.txt`):
-`%ProgramData%\Driver Forge` — `settings.json`, `backups\`, `history.jsonl`, `cache\`.
+`%ProgramData%\Driver Forge` — `settings.json`, `backups\`, `history.jsonl` (drivers and apps),
+`cache\`, `last-apps.json` (the last Apps command-line run).
