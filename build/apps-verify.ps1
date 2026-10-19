@@ -57,7 +57,7 @@ foreach ($id in $packages) {
     $before = @(Windows)
     $code = Run "--apps-install `"$list`" --accept-agreements"
     $install = Get-Content (Join-Path $App 'last-apps.json') -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json
-    Start-Sleep 8                                   # installers that launch the app do it right at the end
+    Start-Sleep 20                                  # installers that launch the app do it at the end (Dropbox: late)
     $opened = @(CloseNew $before)
 
     $r = $install | Select-Object -First 1

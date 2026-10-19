@@ -242,15 +242,46 @@ public sealed class WinGetAppEngine(string dataDirectory) : IAppEngine, IDisposa
             string from = pkg.InstalledVersion.Version;
             var op = pm.UninstallPackageAsync(pkg, new UninstallOptions { PackageUninstallMode = PackageUninstallMode.Silent });
             op.Progress = (_, p) => progress?.Report(new AppStep(app.Id, "Uninstalling", p.UninstallationProgress * 100));
-            var r = op.GetAwaiter().GetResult();
+            // ⚠️ Some uninstallers ignore the silent switch and wait on a prompt
+            // nobody sees (IrfanView's, A7); winget would wait with them forever.
+            var task = op.AsTask();
+            if (!task.Wait(UninstallLimit))
+            {
+                op.Cancel();
+                return Result(app, AppAction.Uninstall, AppOutcome.Failed,
+                    $"Its uninstaller didn't finish in {UninstallLimit.TotalMinutes:0} minutes. It may be waiting for an answer in a window.") with { FromVersion = from };
+            }
+            var r = task.Result;
             var (outcome, text) = r.Status == UninstallResultStatus.Ok
                 ? (AppOutcome.Uninstalled, "Uninstalled.")
                 : MapStatus(r.Status.ToString(), r.ExtendedErrorCode?.HResult ?? 0, 0);
+            // ⚠️ winget's Ok isn't proof (A7): NSIS uninstallers hand off to a
+            // copy of themselves and exit, and some then wait on a prompt or do
+            // nothing. Check the installed list until the app is gone.
+            if (outcome == AppOutcome.Uninstalled && !GoneWithin(pm, app.Id, UninstallSettle))
+                (outcome, text) = (AppOutcome.Failed, "Its uninstaller reported success, but the app is still installed. It may be waiting for an answer in a window.");
             if (r.RebootRequired) text += " Restart to finish.";
             return Result(app, AppAction.Uninstall, outcome, text) with { FromVersion = from, RebootRequired = r.RebootRequired };
         });
         Record(result, app);
         return result;
+    }
+
+    /// <summary>How long an uninstaller may run before it's given up on.</summary>
+    public TimeSpan UninstallLimit { get; init; } = TimeSpan.FromMinutes(10);
+
+    /// <summary>How long an uninstall may take to show in the installed list.</summary>
+    public TimeSpan UninstallSettle { get; init; } = TimeSpan.FromSeconds(90);
+
+    static bool GoneWithin(PackageManager pm, string id, TimeSpan limit)
+    {
+        var until = DateTime.UtcNow + limit;
+        while (true)
+        {
+            if (WinGetSession.FindById(WinGetSession.Connect(pm, CompositeSearchBehavior.LocalCatalogs), id)?.InstalledVersion is null) return true;
+            if (DateTime.UtcNow >= until) return false;
+            Thread.Sleep(5000);
+        }
     }
 
     static string Describe(PackageInstallProgressState s) => s switch
@@ -285,6 +316,7 @@ public sealed class WinGetAppEngine(string dataDirectory) : IAppEngine, IDisposa
     public const int RebootBeforeInstall = unchecked((int)0x8A15010A);
     public const int CancelledByUser = unchecked((int)0x8A15010C);
     public const int BlockedByPolicyCode = unchecked((int)0x8A15010F);
+    public const int DependenciesFailed = unchecked((int)0x8A150110);
 
     /// <summary>§3.5: what an install or upgrade result means to the user.</summary>
     public static (AppOutcome, string) MapInstall(InstallResultStatus status, int hr, uint installerCode, bool upgrade)
@@ -300,6 +332,9 @@ public sealed class WinGetAppEngine(string dataDirectory) : IAppEngine, IDisposa
     {
         if (status == "PackageAgreementsNotAccepted") return (AppOutcome.NeedsConsent, "Needs you to accept its licence terms.");
         if (status == "BlockedByPolicy" || hr == BlockedByPolicyCode) return (AppOutcome.Blocked, "Blocked by this PC's policy.");
+        // Found in A7 (HandBrake): reported with a DownloadError status, but
+        // it's a dependency (a runtime) that didn't install.
+        if (hr == DependenciesFailed) return (AppOutcome.Failed, "A package it needs (usually a runtime) didn't install.");
         if (hr == HashMismatch) return (AppOutcome.DownloadFailed, "The download didn't match the catalog's checksum, so it wasn't installed.");
         if (status == "DownloadError") return (AppOutcome.DownloadFailed, $"Download failed (0x{hr:X8}).");
         if (hr == InstallInProgress) return (AppOutcome.Failed, "Another installation is in progress.");

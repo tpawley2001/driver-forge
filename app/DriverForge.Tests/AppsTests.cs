@@ -106,6 +106,7 @@ public class AppResultMappingTests
     [InlineData(InstallResultStatus.BlockedByPolicy, 0, false, AppOutcome.Blocked)]
     [InlineData(InstallResultStatus.DownloadError, WinGetAppEngine.HashMismatch, false, AppOutcome.DownloadFailed)]
     [InlineData(InstallResultStatus.InstallError, WinGetAppEngine.InstallInProgress, false, AppOutcome.Failed)]
+    [InlineData(InstallResultStatus.DownloadError, WinGetAppEngine.DependenciesFailed, false, AppOutcome.Failed)]
     [InlineData(InstallResultStatus.InstallError, unchecked((int)0x80070643), false, AppOutcome.Failed)]
     public void Maps_winget_results(InstallResultStatus status, int hr, bool upgrade, AppOutcome expected) =>
         Assert.Equal(expected, WinGetAppEngine.MapInstall(status, hr, 0, upgrade).Item1);

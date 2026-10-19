@@ -265,10 +265,21 @@ Icons: the generic Fluent icon for the category. No vendor logos are shipped.
    at the end.
 
 Uninstalls ask winget for silent mode, but an app's own uninstaller can
-ignore it: in A7, Brave's (Chromium's `setup.exe --uninstall`) waited on a
-prompt no one could see, and Firefox's opens a web page. The queue waits for
-the uninstaller like any installer (never killed half-way, §5.1); the
-progress line names the app so the user knows what it's waiting on.
+ignore it, and winget's "uninstalled" isn't proof of removal. Found in A7:
+the uninstallers of Brave, Vivaldi (Chromium's `setup.exe --uninstall`),
+MPC-HC, Greenshot, Malwarebytes and Google Drive waited on prompts no one
+could see (10-minute timeout in the verifier); NSIS uninstallers (Firefox,
+VLC) hand off to a copy of themselves and return at once, so winget reports
+success while the removal is still running (and in A7, HandBrake, IrfanView,
+qBittorrent and Firefox were never removed at all). So an uninstall only
+counts once the app is gone from the installed list: the engine re-checks
+for up to 90 s and otherwise reports "reported success, but still
+installed". An uninstaller still running after 10 minutes (IrfanView's
+waits on a hidden "are you sure?" despite `/silent`) is given up on: the
+engine cancels the winget operation and reports "didn't finish in 10
+minutes, may be waiting for an answer in a window", so a batch moves on.
+Firefox's uninstaller also opens a web page. The progress line names the app
+so the user knows what it's waiting on.
 
 ### 5.2 Licence terms
 
@@ -400,7 +411,7 @@ line at the top: winget engine version and source health ("Catalog updated
 | A4 | Bundled-offer check (§6) | Snapshot diff unit tests pass. On the test box a package that pulls in a VC++ runtime doesn't flag, and a deliberately added extra program does. **Done 2026-10-18**: during a LibreOffice install, two Uninstall keys were added from outside: "Super Toolbar" was flagged ("Also installed: Super Toolbar (AdCorp)"), the VC++ 2015-2022 redistributable entry wasn't |
 | A5 | Updates (§5.4) | An older 7-Zip installed by hand shows in Updates and upgrades. Ignore-this-version works and clears on a newer version. **Done 2026-10-18** with VLC 3.0.18 (already old on the box): ignored at 3.0.24 → not run; ignore removed → updated 3.0.18 → 3.0.24; again → nothing to do. Clearing on a newer version: `AppIgnoreTests` |
 | A6 | Lists, CLI, schedule (§8) | Export → `winget import` on a second box installs the same list, and the reverse. `--apps-install` with exit codes. The scheduled pass reports app updates in its balloon. **Done 2026-10-18** on the test box (the format is what's under test, not the box): our export (49 packages) read by `winget import --no-upgrade`; `winget export` (50) read by `--apps-install --test-mode` (28 skipped, 21 downloaded and hash-checked, 1 scope failure that led to the upgrade-scope fix in §3.4). `--scan-only` wrote `AppUpdates: 21` beside 16 driver updates. Note: the winget *CLI* can't refresh its source from an SSH session (404); run it in the signed-in session |
-| A7 | Curated list (§4) | Every curated app run once on the test box and given its `verified` date |
+| A7 | Curated list (§4) | Every curated app run once on the test box and given its `verified` date. **Done 2026-10-19** (`build/apps-verify.sh`, three runs): **53 of 58 verified** (silent install, nothing extra installed, no window left open). 5 of those verified as clean upgrades of copies already on the box (VC++ runtime, Git, Notepad++, Python 3.13, Node.js LTS). Not offered: Discord and Signal (per-user installers only, so they fail the default machine-wide install), AIMP (catalog download link 404), PowerToys (opens its Welcome and Quick Access windows), Dropbox (welcome window opens late, its uninstall reported success but left it, a reinstall failed). HandBrake's first failure was a dependency (0x8A150110, now mapped) and passed on rerun. Uninstall problems don't block verification but are listed in §5.1 |
 
 Testing rule: same as drivers, installs only on the **test box**.
 
