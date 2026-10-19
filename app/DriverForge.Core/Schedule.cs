@@ -30,11 +30,20 @@ public static class ScheduledScan
 }
 
 /// <summary>What the last background scan found; the app shows it, tests read it.</summary>
-public sealed record ScanSummary(DateTime At, int Missing, int Updates, IReadOnlyList<string> Devices)
+public sealed record ScanSummary(DateTime At, int Missing, int Updates, IReadOnlyList<string> Devices,
+                                 int AppUpdates = 0, int AppsUpdated = 0)
 {
-    public int Total => Missing + Updates;
+    /// <summary>What needs attention: drivers, plus app updates still waiting
+    /// (ones the run installed itself are reported but don't count).</summary>
+    public int Total => Missing + Updates + AppUpdates;
 
-    public string Text => (Missing, Updates) switch
+    public string Text => DriverText + AppText;
+
+    string AppText =>
+        (AppsUpdated > 0 ? $" {AppsUpdated} {(AppsUpdated == 1 ? "app was" : "apps were")} updated." : "")
+        + (AppUpdates > 0 ? $" {AppUpdates} app {(AppUpdates == 1 ? "update is" : "updates are")} available." : "");
+
+    string DriverText => (Missing, Updates) switch
     {
         (0, 0) => "All drivers are up to date.",
         (0, var u) => $"{u} driver {(u == 1 ? "update" : "updates")} available.",

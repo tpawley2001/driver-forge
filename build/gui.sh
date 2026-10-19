@@ -84,6 +84,19 @@ Remove-Item '$TMP\\win.png' -ErrorAction SilentlyContinue
       sleep 1
     done
     echo "no window capture" >&2; exit 1 ;;
+  run)
+    # build/gui.sh run "<args>" [file...]: run DriverForge.exe with args in the
+    # signed-in session, elevated, wait for it to exit, print its exit code and
+    # then each named file from the app folder (e.g. last-apps.json).
+    args=${2:?arguments}; shift 2
+    run_task DriverForgeRun "$APP\\DriverForge.exe" "$args" 1
+    winps "$TEST_HOST" "
+Start-Sleep 2
+for (\$i = 0; \$i -lt 3600 -and (Get-ScheduledTask -TaskName DriverForgeRun).State -eq 'Running'; \$i++) { Start-Sleep 1 }
+'exit ' + (Get-ScheduledTaskInfo -TaskName DriverForgeRun).LastTaskResult
+" 2>&1 | grep -v '^#< CLIXML\|^<Objs' || true
+    # ssh+type, not scp to /dev/stdout: scp truncates a redirected stdout.
+    for f in "$@"; do echo "== $f"; ssh "$TEST_HOST" "type driverforge-test\\app\\$f" 2>/dev/null || echo "(missing)"; done ;;
   apps-probe)
     # Milestone A1 (docs/APPS.md §10): run --apps-probe in the signed-in
     # session, elevated like the real app, and print its log.
@@ -91,7 +104,7 @@ Remove-Item '$TMP\\win.png' -ErrorAction SilentlyContinue
     winps "$TEST_HOST" "Remove-Item '$APP\\apps-probe.log' -ErrorAction SilentlyContinue" 2>&1 | grep -v '^#< CLIXML\|^<Objs' || true
     run_task DriverForgeAppsProbe "$APP\\DriverForge.exe" "--apps-probe $id ${3:-}" 1
     for _ in $(seq 1 600); do
-      if scp -q "$TEST_HOST:driverforge-test/app/apps-probe.log" /dev/stdout 2>/dev/null; then exit 0; fi
+      if ssh "$TEST_HOST" "type driverforge-test\\app\\apps-probe.log" 2>/dev/null; then exit 0; fi
       sleep 1
     done
     echo "no probe log after 10 minutes" >&2; exit 1 ;;

@@ -30,16 +30,27 @@ public sealed record HistoryEntry(
     bool Simulated,
     bool NeedsRestart,
     string Message,
-    string? BackupFolder)
+    string? BackupFolder,
+    AppChange? App = null)
 {
+    /// <summary>"app" for an Apps page action (APPS.md §7), "driver" otherwise.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string Kind => App is null ? "driver" : "app";
+
     /// <summary>
     /// A real, successful change away from a driver we can get back: an inbox
     /// driver (always in Windows) or a third-party one we backed up.
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore]
-    public bool CanRollBack => Ok && !Simulated && From is { Inf.Length: > 0 } f
+    public bool CanRollBack => App is null && Ok && !Simulated && From is { Inf.Length: > 0 } f
         && (!DriverBackup.IsThirdParty(f.Inf) || BackupFolder is not null);
 }
+
+/// <summary>
+/// An Apps page action (APPS.md §7). For these entries InstanceId holds the
+/// winget package ID and DeviceName the app's name; rollback is Uninstall.
+/// </summary>
+public sealed record AppChange(string Action, string? FromVersion, string? ToVersion, IReadOnlyList<string> Extras);
 
 /// <summary>history.jsonl: append-only, one entry per line, newest last.</summary>
 public sealed class InstallHistory(string path)

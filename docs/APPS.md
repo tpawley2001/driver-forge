@@ -176,7 +176,7 @@ Rules from Microsoft's client code:
 | Option | Value | Why |
 |---|---|---|
 | `PackageInstallMode` | `Silent` | No wizard, no prompts (the core Ninite promise) |
-| `PackageInstallScope` | `SystemOrUnknown` (setting: `Any`) | Machine-wide, so it works for every user and the elevated install doesn't land in the admin's profile (§5.3) |
+| `PackageInstallScope` | Install: `SystemOrUnknown` (setting: `Any`). Upgrade: `Any` | Machine-wide, so it works for every user and the elevated install doesn't land in the admin's profile (§5.3). An upgrade keeps the scope the app is already installed in (found in A6: a per-user MobaXterm had "no installer" under `SystemOrUnknown`) |
 | `AcceptPackageAgreements` | `true` only after consent (§5.2) | Packages with licence terms otherwise fail with `PackageAgreementsNotAccepted` |
 | `AllowUpgradeToUnknownVersion` | `false` | Don't "upgrade" apps whose installed version winget can't read |
 | `Force` | `false` | Never override hash or applicability checks |
@@ -353,8 +353,14 @@ shows both kinds with a filter. Rollback for apps is **Uninstall** only (§1).
 
   ```
   DriverForge.exe --apps-install <list.json> [--accept-agreements] [--scope machine|any]
-  DriverForge.exe --apps-update [--include-self-updating]
+  DriverForge.exe --apps-update [--include-self-updating] [--only <id,id>]
+  DriverForge.exe --apps-uninstall <id>
+  DriverForge.exe --apps-export <list.json> [--only <id,id>]
+  DriverForge.exe --apps-json curated|installed|updates|missing|search=<text>|describe=<id,id> <out.json>
   ```
+
+  `--test-mode` on any of them simulates (§5.5). `--only` limits an update
+  run to those IDs (and includes them even if they update themselves).
 
   No window, results to the console and the data folder (`last-apps.json`),
   exit code 0 when every package ended Installed, Skipped or Up to date, 1
@@ -383,11 +389,11 @@ line at the top: winget engine version and source health ("Catalog updated
 | # | Milestone | Done when |
 |---|---|---|
 | A1 | Activation spike (§3.2) | From the elevated app on the test box: in-process engine starts on an MTA thread, searches `OpenWindowsCatalog`, installs and uninstalls 7-Zip silently. Also run from the scheduled task. **Done 2026-10-18** (`build/gui.sh apps-probe 7zip.7zip --install`): Windows 10 22H2 (19045), engine 1.29.380 in-process. As the signed-in admin through an interactive highest-run-level task (how `Driver Forge\Scan` runs): found 26.04, installed silently (Downloading > Installing > PostInstall, 7 s), listed as installed, uninstalled, gone. Same as SYSTEM. No App Installer involvement |
-| A2 | Engine read side (§3.3, §4) | Curated list and full-catalog search with installed/available versions. `catalog.json` parses and `CatalogTests` resolve every ID |
-| A3 | Install queue (§5, §3.5) | A batch of 5 curated apps installs silently on the test box, one already installed and skipped. Each result maps correctly. Cancel mid-batch stops after the current package. History entries written |
-| A4 | Bundled-offer check (§6) | Snapshot diff unit tests pass. On the test box a package that pulls in a VC++ runtime doesn't flag, and a deliberately added extra program does |
-| A5 | Updates (§5.4) | An older 7-Zip installed by hand shows in Updates and upgrades. Ignore-this-version works and clears on a newer version |
-| A6 | Lists, CLI, schedule (§8) | Export → `winget import` on a second box installs the same list, and the reverse. `--apps-install` with exit codes. The scheduled pass reports app updates in its balloon |
+| A2 | Engine read side (§3.3, §4) | Curated list and full-catalog search with installed/available versions. `catalog.json` parses and `CatalogTests` resolve every ID. **Done 2026-10-18**: offline catalog tests in xunit; live, `--apps-json missing` resolved 60 of 61 curated IDs (RustDesk isn't in the catalog any more; dropped). `installed`: 143 programs, 44 matched to the catalog, 22 with updates. `search=notepad` works. `describe` flags Discord as per-user only |
+| A3 | Install queue (§5, §3.5) | A batch of 5 curated apps installs silently on the test box, one already installed and skipped. Each result maps correctly. Cancel mid-batch stops after the current package. History entries written. **Done 2026-10-18**: `--apps-install` of 7-Zip, WinMerge, Everything, SumatraPDF (installed, 40 s total) + CPU-Z (skipped, current); app entries in `history.jsonl`. Cancel is covered by `AppQueueTests` (the UI's Cancel uses the same token) |
+| A4 | Bundled-offer check (§6) | Snapshot diff unit tests pass. On the test box a package that pulls in a VC++ runtime doesn't flag, and a deliberately added extra program does. **Done 2026-10-18**: during a LibreOffice install, two Uninstall keys were added from outside: "Super Toolbar" was flagged ("Also installed: Super Toolbar (AdCorp)"), the VC++ 2015-2022 redistributable entry wasn't |
+| A5 | Updates (§5.4) | An older 7-Zip installed by hand shows in Updates and upgrades. Ignore-this-version works and clears on a newer version. **Done 2026-10-18** with VLC 3.0.18 (already old on the box): ignored at 3.0.24 → not run; ignore removed → updated 3.0.18 → 3.0.24; again → nothing to do. Clearing on a newer version: `AppIgnoreTests` |
+| A6 | Lists, CLI, schedule (§8) | Export → `winget import` on a second box installs the same list, and the reverse. `--apps-install` with exit codes. The scheduled pass reports app updates in its balloon. **Done 2026-10-18** on the test box (the format is what's under test, not the box): our export (49 packages) read by `winget import --no-upgrade`; `winget export` (50) read by `--apps-install --test-mode` (28 skipped, 21 downloaded and hash-checked, 1 scope failure that led to the upgrade-scope fix in §3.4). `--scan-only` wrote `AppUpdates: 21` beside 16 driver updates. Note: the winget *CLI* can't refresh its source from an SSH session (404); run it in the signed-in session |
 | A7 | Curated list (§4) | Every curated app run once on the test box and given its `verified` date |
 
 Testing rule: same as drivers, installs only on the **test box**.

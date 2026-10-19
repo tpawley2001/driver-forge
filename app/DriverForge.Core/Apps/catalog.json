@@ -1,0 +1,81 @@
+// Curated apps for the Get apps tab (docs/APPS.md §4). Our own list.
+// An app is OFFERED only once "verified" holds the date its silent install
+// ran clean on the test box (no extra programs, no window left open).
+// Names, publishers and versions come live from winget, never from here.
+{
+  "version": 1,
+  "categories": ["Browsers", "Messaging", "Media", "Imaging", "Documents",
+                 "Security", "Runtimes", "File sharing", "Cloud storage",
+                 "Compression", "Utilities", "Developer tools"],
+  "apps": [
+    { "id": "Mozilla.Firefox", "category": "Browsers", "selfUpdating": true },
+    { "id": "Google.Chrome", "category": "Browsers", "selfUpdating": true },
+    { "id": "Brave.Brave", "category": "Browsers", "selfUpdating": true },
+    { "id": "Vivaldi.Vivaldi", "category": "Browsers", "selfUpdating": true },
+
+    { "id": "Mozilla.Thunderbird", "category": "Messaging", "selfUpdating": true },
+    { "id": "Discord.Discord", "category": "Messaging", "selfUpdating": true },
+    { "id": "Zoom.Zoom", "category": "Messaging", "selfUpdating": true },
+    { "id": "SlackTechnologies.Slack", "category": "Messaging", "selfUpdating": true },
+    { "id": "Telegram.TelegramDesktop", "category": "Messaging", "selfUpdating": true },
+    { "id": "OpenWhisperSystems.Signal", "category": "Messaging", "selfUpdating": true },
+
+    { "id": "VideoLAN.VLC", "category": "Media" },
+    { "id": "clsid2.mpc-hc", "category": "Media" },
+    { "id": "Audacity.Audacity", "category": "Media" },
+    { "id": "HandBrake.HandBrake", "category": "Media" },
+    { "id": "OBSProject.OBSStudio", "category": "Media" },
+    { "id": "CodecGuide.K-LiteCodecPack.Standard", "category": "Media" },
+    { "id": "AIMP.AIMP", "category": "Media" },
+
+    { "id": "GIMP.GIMP.3", "category": "Imaging" },
+    { "id": "dotPDN.PaintDotNet", "category": "Imaging" },
+    { "id": "Inkscape.Inkscape", "category": "Imaging" },
+    { "id": "KDE.Krita", "category": "Imaging" },
+    { "id": "IrfanSkiljan.IrfanView", "category": "Imaging" },
+    { "id": "ShareX.ShareX", "category": "Imaging" },
+    { "id": "Greenshot.Greenshot", "category": "Imaging" },
+    { "id": "BlenderFoundation.Blender", "category": "Imaging" },
+
+    { "id": "TheDocumentFoundation.LibreOffice", "category": "Documents" },
+    { "id": "SumatraPDF.SumatraPDF", "category": "Documents" },
+    { "id": "Obsidian.Obsidian", "category": "Documents", "selfUpdating": true },
+
+    { "id": "Bitwarden.Bitwarden", "category": "Security", "selfUpdating": true },
+    { "id": "KeePassXCTeam.KeePassXC", "category": "Security" },
+    { "id": "Malwarebytes.Malwarebytes", "category": "Security", "selfUpdating": true },
+
+    { "id": "Microsoft.DotNet.DesktopRuntime.8", "category": "Runtimes", "machineOnly": true },
+    { "id": "Microsoft.DotNet.DesktopRuntime.10", "category": "Runtimes", "machineOnly": true },
+    { "id": "Microsoft.VCRedist.2015+.x64", "category": "Runtimes", "machineOnly": true },
+    { "id": "EclipseAdoptium.Temurin.21.JRE", "category": "Runtimes", "machineOnly": true },
+    { "id": "Microsoft.EdgeWebView2Runtime", "category": "Runtimes", "machineOnly": true, "selfUpdating": true },
+
+    { "id": "qBittorrent.qBittorrent", "category": "File sharing" },
+
+    { "id": "Google.GoogleDrive", "category": "Cloud storage", "selfUpdating": true },
+    { "id": "Dropbox.Dropbox", "category": "Cloud storage", "selfUpdating": true },
+
+    { "id": "7zip.7zip", "category": "Compression" },
+    { "id": "Giorgiotani.Peazip", "category": "Compression" },
+
+    { "id": "Microsoft.PowerToys", "category": "Utilities", "selfUpdating": true },
+    { "id": "voidtools.Everything", "category": "Utilities" },
+    { "id": "AntibodySoftware.WizTree", "category": "Utilities" },
+    { "id": "WinDirStat.WinDirStat", "category": "Utilities" },
+    { "id": "CPUID.CPU-Z", "category": "Utilities" },
+    { "id": "TechPowerUp.GPU-Z", "category": "Utilities" },
+    { "id": "CrystalDewWorld.CrystalDiskInfo", "category": "Utilities" },
+    { "id": "Rufus.Rufus", "category": "Utilities" },
+    { "id": "Microsoft.WindowsTerminal", "category": "Utilities" },
+
+    { "id": "Microsoft.VisualStudioCode", "category": "Developer tools", "selfUpdating": true },
+    { "id": "Git.Git", "category": "Developer tools" },
+    { "id": "Notepad++.Notepad++", "category": "Developer tools" },
+    { "id": "Python.Python.3.13", "category": "Developer tools" },
+    { "id": "OpenJS.NodeJS.LTS", "category": "Developer tools" },
+    { "id": "PuTTY.PuTTY", "category": "Developer tools" },
+    { "id": "WinSCP.WinSCP", "category": "Developer tools" },
+    { "id": "WinMerge.WinMerge", "category": "Developer tools" }
+  ]
+}

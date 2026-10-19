@@ -50,6 +50,20 @@ public partial class App : Application
             return;
         }
 
+        // --apps-install / --apps-update / --apps-json …: the Apps command line (APPS.md §8), no window.
+        if (DriverForge.Core.Apps.AppsCli.Handles(e.Args))
+        {
+            int code;
+            try { code = Task.Run(() => DriverForge.Core.Apps.AppsCli.RunAsync(e.Args, data)).GetAwaiter().GetResult(); }
+            catch (Exception ex)
+            {
+                File.WriteAllText(Path.Combine(data, "last-apps.error.txt"), ex.ToString());
+                code = 2;
+            }
+            Shutdown(code);
+            return;
+        }
+
         // Scheduled scan (SPEC §9): no window; a notification when something needs attention.
         if (e.Args.Contains("--scan-only"))
         {
@@ -118,8 +132,15 @@ public partial class App : Application
             var settings = AppSettings.Load(Path.Combine(data, "settings.json"));
             var report = Task.Run(() => engine.ScanAsync(null)).GetAwaiter().GetResult();
             var summary = ScanSummary.From(report, settings.IgnoredDevices);
+            // App pass (APPS.md §8). A broken winget never costs the driver notification.
+            try
+            {
+                var (pending, updated) = Task.Run(() => DriverForge.Core.Apps.ScheduledApps.RunAsync(data, settings)).GetAwaiter().GetResult();
+                summary = summary with { AppUpdates = pending, AppsUpdated = updated };
+            }
+            catch (Exception ex) { File.WriteAllText(Path.Combine(data, "last-apps.error.txt"), ex.ToString()); }
             summary.Save(Path.Combine(data, "last-scan.json"));
-            if (summary.Total > 0) Notify(summary);
+            if (summary.Total > 0 || summary.AppsUpdated > 0) Notify(summary);
         }
         catch (Exception ex) when (ex is EngineException or IOException or UnauthorizedAccessException)
         {

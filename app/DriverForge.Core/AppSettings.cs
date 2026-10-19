@@ -16,6 +16,21 @@ public sealed class AppSettings
     public List<string> DriverFolders { get; set; } = [];
     public ScanSchedule ScanSchedule { get; set; } = ScanSchedule.Off;
 
+    // ── Apps page (docs/APPS.md) ──
+    /// <summary>Package ID → ignored version ("" = every version). A version
+    /// entry stops applying once a newer one is available (§5.4).</summary>
+    public Dictionary<string, string> IgnoredApps { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>Install app updates in the scheduled run (§8). Off by default.</summary>
+    public bool AutoUpdateApps { get; set; }
+    /// <summary>Restore point before a batch of app installs (§5.1). Off by default.</summary>
+    public bool AppsRestorePoint { get; set; }
+    /// <summary>Allow per-user installers (PackageInstallScope.Any) instead of machine-wide only (§3.4).</summary>
+    public bool AppsAnyScope { get; set; }
+
+    /// <summary>True when this update should be hidden by the ignore list.</summary>
+    public bool IsAppIgnored(string id, string? availableVersion) =>
+        IgnoredApps.TryGetValue(id, out var v) && (v.Length == 0 || string.Equals(v, availableVersion, StringComparison.OrdinalIgnoreCase));
+
     static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
 
     public static AppSettings Load(string path)
@@ -28,6 +43,7 @@ public sealed class AppSettings
                 if (s is not null)
                 {
                     s.IgnoredDevices = new(s.IgnoredDevices, StringComparer.OrdinalIgnoreCase);
+                    s.IgnoredApps = new(s.IgnoredApps, StringComparer.OrdinalIgnoreCase);
                     return s;
                 }
             }

@@ -1,0 +1,17 @@
+// Programs an app's install may add on purpose: the runtimes winget installs
+// as dependencies (docs/APPS.md §6). Matched against DisplayName,
+// case-insensitive. Anything else that appears during an install is flagged.
+{
+  "patterns": [
+    "^Microsoft Visual C\\+\\+ 20\\d\\d.*Redistributable",
+    "^Microsoft Visual C\\+\\+ 20\\d\\d .*Runtime",
+    "^Microsoft \\.NET (Desktop |ASP\\.NET Core |Windows Desktop )?Runtime",
+    "^Microsoft Windows Desktop Runtime",
+    "^Microsoft ASP\\.NET Core .*(Runtime|Hosting Bundle)",
+    "^Microsoft \\.NET Host",
+    "^Windows App ?SDK|^Microsoft Windows App Runtime",
+    "^Microsoft Edge WebView2 Runtime",
+    "^Python Launcher$",
+    "^Git Credential Manager"
+  ]
+}

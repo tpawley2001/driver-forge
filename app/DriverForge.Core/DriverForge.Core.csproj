@@ -23,6 +23,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Apps\catalog.json" LogicalName="DriverForge.Core.Apps.catalog.json" />
+    <EmbeddedResource Include="Apps\runtimes.json" LogicalName="DriverForge.Core.Apps.runtimes.json" />
+  </ItemGroup>
+
+  <ItemGroup>
     <InternalsVisibleTo Include="DriverForge.Tests" />
   </ItemGroup>
 
