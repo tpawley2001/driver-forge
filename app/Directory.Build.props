@@ -1,0 +1,8 @@
+<Project>
+  <PropertyGroup>
+    <!-- winget ComInterop: projection only, no out-of-process factory DLL
+         (docs/APPS.md §3.2); applies to every project the package flows into. -->
+    <MicrosoftManagementDeployment-FactoryLinkage>none</MicrosoftManagementDeployment-FactoryLinkage>
+    <MicrosoftManagementDeployment-OutputWinMD>false</MicrosoftManagementDeployment-OutputWinMD>
+  </PropertyGroup>
+</Project>

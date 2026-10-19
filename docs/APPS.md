@@ -97,8 +97,28 @@ A `DemoAppEngine` (fixed rows, simulated progress) backs `--demo`, as
 | `Microsoft.WindowsPackageManager.InProcCom` | 1.29.380 | MIT | The winget engine loaded into Driver Forge's own process |
 | `Microsoft.WindowsPackageManager.ComInterop` | 1.29.380 | MIT | CsWinRT projection of `Microsoft.Management.Deployment` |
 
-Both are published and verified by Microsoft. Add them to
+Both are published and verified by Microsoft and listed in
 `THIRD-PARTY-NOTICES.md`. InProcCom adds about 8 MB (x64) to the build.
+
+Build notes (all in `app/Directory.Build.props` / `.targets`):
+
+- The projection targets `net8.0-windows10.0.26100.0`, so every project
+  targets `net10.0-windows10.0.26100.0` (`SupportedOSPlatformVersion` stays
+  10.0.17763.0). That pulls in `Microsoft.Windows.SDK.NET.dll` (25 MB).
+  ⚠️ **Open decision:** that DLL is under the Windows SDK licence
+  (redistributable inside an app, not MIT), which CLEAN-ROOM.md's
+  permissive-only rule doesn't allow. Either accept it as an exception (every
+  .NET app on a Windows-versioned TFM ships it), or generate our own
+  projection of just the winget API and the few `Windows.Foundation` types it
+  uses with C#/WinRT (MIT) and go back to plain `net10.0-windows`. No release
+  ships with it until this is decided.
+- `MicrosoftManagementDeployment-FactoryLinkage=none`: no out-of-process
+  factory DLL, so activation can only reach the in-process engine.
+- ComInterop adds its `.winmd` as a reference, which .NET 5+ refuses
+  (NETSDK1130); a target drops it before the SDK's check.
+- InProcCom is referenced with `ExcludeAssets="compile;runtime"` (its lib
+  `.winmd` has no TFM, NU1701), and its 130 MB of `.pdb` native assets are
+  removed from the output.
 
 ### 3.2 Activation
 
@@ -116,9 +136,16 @@ Decision: **in-process** (InProcCom) is the primary path, because it
   driver engine does;
 - pins the winget engine version to what we tested.
 
-Out-of-process activation (App Installer's server, through ComInterop) is
-the fallback if the in-process engine can't start. Milestone A1 (§10)
-proves one of these on the test box before anything else is built.
+Out-of-process activation (App Installer's server) was the planned
+fallback; A1 showed the in-process engine works from every context Driver
+Forge runs in, so the fallback isn't built.
+
+Activation is reg-free WinRT from the app manifest: `app.manifest` lists
+the engine's `activatableClass` entries against
+`Microsoft.Management.Deployment.InProc.dll` (copied from that DLL's own
+manifest in the package; regenerate on a package update). Windows supports
+this for unpackaged apps from **Windows 10 1903**, so the Apps page needs
+1903+ (the driver engine still runs on 1809) and says so on older builds.
 
 Rules from Microsoft's client code:
 
@@ -355,7 +382,7 @@ line at the top: winget engine version and source health ("Catalog updated
 
 | # | Milestone | Done when |
 |---|---|---|
-| A1 | Activation spike (§3.2) | From the elevated app on the test box: in-process engine starts on an MTA thread, searches `OpenWindowsCatalog`, installs and uninstalls 7-Zip silently. Also run from the scheduled task. If in-process fails, the out-of-process fallback does the same. Record which path works and on which Windows builds |
+| A1 | Activation spike (§3.2) | From the elevated app on the test box: in-process engine starts on an MTA thread, searches `OpenWindowsCatalog`, installs and uninstalls 7-Zip silently. Also run from the scheduled task. **Done 2026-10-18** (`build/gui.sh apps-probe 7zip.7zip --install`): Windows 10 22H2 (19045), engine 1.29.380 in-process. As the signed-in admin through an interactive highest-run-level task (how `Driver Forge\Scan` runs): found 26.04, installed silently (Downloading > Installing > PostInstall, 7 s), listed as installed, uninstalled, gone. Same as SYSTEM. No App Installer involvement |
 | A2 | Engine read side (§3.3, §4) | Curated list and full-catalog search with installed/available versions. `catalog.json` parses and `CatalogTests` resolve every ID |
 | A3 | Install queue (§5, §3.5) | A batch of 5 curated apps installs silently on the test box, one already installed and skipped. Each result maps correctly. Cancel mid-batch stops after the current package. History entries written |
 | A4 | Bundled-offer check (§6) | Snapshot diff unit tests pass. On the test box a package that pulls in a VC++ runtime doesn't flag, and a deliberately added extra program does |

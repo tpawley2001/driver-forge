@@ -15,6 +15,25 @@
       <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}" />
     </application>
   </compatibility>
+  <!-- winget, in-process (docs/APPS.md §3.2): reg-free WinRT activation of
+       the engine shipped beside the exe. Generated from the InProcCom 1.29.380
+       package's own Microsoft.Management.Deployment.InProc.dll.manifest;
+       regenerate when that package is updated. Needs Windows 10 1903+. -->
+  <file name="Microsoft.Management.Deployment.InProc.dll">
+    <activatableClass name="Microsoft.Management.Deployment.PackageManager" threadingModel="both" xmlns="urn:schemas-microsoft-com:winrt.v1" />
+    <activatableClass name="Microsoft.Management.Deployment.FindPackagesOptions" threadingModel="both" xmlns="urn:schemas-microsoft-com:winrt.v1" />
+    <activatableClass name="Microsoft.Management.Deployment.CreateCompositePackageCatalogOptions" threadingModel="both" xmlns="urn:schemas-microsoft-com:winrt.v1" />
+    <activatableClass name="Microsoft.Management.Deployment.InstallOptions" threadingModel="both" xmlns="urn:schemas-microsoft-com:winrt.v1" />
+    <activatableClass name="Microsoft.Management.Deployment.UninstallOptions" threadingModel="both" xmlns="urn:schemas-microsoft-com:winrt.v1" />
+    <activatableClass name="Microsoft.Management.Deployment.DownloadOptions" threadingModel="both" xmlns="urn:schemas-microsoft-com:winrt.v1" />
+    <activatableClass name="Microsoft.Management.Deployment.PackageMatchFilter" threadingModel="both" xmlns="urn:schemas-microsoft-com:winrt.v1" />
+    <activatableClass name="Microsoft.Management.Deployment.AuthenticationArguments" threadingModel="both" xmlns="urn:schemas-microsoft-com:winrt.v1" />
+    <activatableClass name="Microsoft.Management.Deployment.PackageManagerSettings" threadingModel="both" xmlns="urn:schemas-microsoft-com:winrt.v1" />
+    <activatableClass name="Microsoft.Management.Deployment.RepairOptions" threadingModel="both" xmlns="urn:schemas-microsoft-com:winrt.v1" />
+    <activatableClass name="Microsoft.Management.Deployment.AddPackageCatalogOptions" threadingModel="both" xmlns="urn:schemas-microsoft-com:winrt.v1" />
+    <activatableClass name="Microsoft.Management.Deployment.RemovePackageCatalogOptions" threadingModel="both" xmlns="urn:schemas-microsoft-com:winrt.v1" />
+    <activatableClass name="Microsoft.Management.Deployment.EditPackageCatalogOptions" threadingModel="both" xmlns="urn:schemas-microsoft-com:winrt.v1" />
+  </file>
   <application xmlns="urn:schemas-microsoft-com:asm.v3">
     <windowsSettings>
       <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true/pm</dpiAware>

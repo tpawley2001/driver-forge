@@ -1,0 +1,21 @@
+<Project>
+  <!-- winget's ComInterop package (docs/APPS.md §3.1) adds its .winmd as a
+       reference for C++ consumers; .NET 5+ refuses that (NETSDK1130) and gets
+       the API from the package's CsWinRT projection DLL instead. Drop the
+       .winmd before the SDK checks for it. -->
+  <Target Name="DropWinGetWinMD" AfterTargets="ResolveReferences" BeforeTargets="_BlockWinMDsOnUnsupportedTFMs">
+    <ItemGroup>
+      <ReferencePath Remove="@(ReferencePath)" Condition="'%(Extension)' == '.winmd'" />
+      <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)" Condition="'%(Extension)' == '.winmd'" />
+    </ItemGroup>
+  </Target>
+
+  <!-- InProcCom ships its debug symbols as native assets (130 MB for
+       WindowsPackageManager.pdb alone); they aren't needed to run. -->
+  <Target Name="DropWinGetPdbs" AfterTargets="ResolvePackageAssets">
+    <ItemGroup>
+      <NativeCopyLocalItems Remove="@(NativeCopyLocalItems)"
+                            Condition="'%(NuGetPackageId)' == 'Microsoft.WindowsPackageManager.InProcCom' and '%(Extension)' == '.pdb'" />
+    </ItemGroup>
+  </Target>
+</Project>

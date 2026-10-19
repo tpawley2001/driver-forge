@@ -38,6 +38,18 @@ public partial class App : Application
             return;
         }
 
+        // --apps-probe <winget id> [--install]: milestone A1 (APPS.md §10), no window.
+        // Proves the in-process winget engine from this elevated process; the
+        // log goes to apps-probe.log in the data folder.
+        if (Arg(e.Args, "--apps-probe") is { } probeId)
+        {
+            var (ok, log) = Task.Run(() => DriverForge.Core.Apps.AppsProbe.RunAsync(probeId, e.Args.Contains("--install")))
+                                .GetAwaiter().GetResult();
+            File.WriteAllLines(Path.Combine(data, "apps-probe.log"), log);
+            Shutdown(ok ? 0 : 1);
+            return;
+        }
+
         // Scheduled scan (SPEC §9): no window; a notification when something needs attention.
         if (e.Args.Contains("--scan-only"))
         {

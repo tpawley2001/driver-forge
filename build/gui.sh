@@ -84,6 +84,17 @@ Remove-Item '$TMP\\win.png' -ErrorAction SilentlyContinue
       sleep 1
     done
     echo "no window capture" >&2; exit 1 ;;
+  apps-probe)
+    # Milestone A1 (docs/APPS.md §10): run --apps-probe in the signed-in
+    # session, elevated like the real app, and print its log.
+    id=${2:?winget package id}
+    winps "$TEST_HOST" "Remove-Item '$APP\\apps-probe.log' -ErrorAction SilentlyContinue" 2>&1 | grep -v '^#< CLIXML\|^<Objs' || true
+    run_task DriverForgeAppsProbe "$APP\\DriverForge.exe" "--apps-probe $id ${3:-}" 1
+    for _ in $(seq 1 600); do
+      if scp -q "$TEST_HOST:driverforge-test/app/apps-probe.log" /dev/stdout 2>/dev/null; then exit 0; fi
+      sleep 1
+    done
+    echo "no probe log after 10 minutes" >&2; exit 1 ;;
   deploy)
     # Replace the app but keep its settings and data.
     winps "$TEST_HOST" "
